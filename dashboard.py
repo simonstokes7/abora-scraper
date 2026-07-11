@@ -11,6 +11,7 @@ def launch_interface():
     
     query = """
         SELECT 
+            e.episode_id AS [EpisodeID],
             e.episode_name AS [Episode], 
             e.air_date AS [Air Date],
             t.track_number AS [Track #], 
@@ -44,13 +45,21 @@ def launch_interface():
         url = row['BaseURL']
         seconds = row['TotalSeconds']
         time_str = row['Start Time']
+        episode_id = str(row['EpisodeID'])
+        
+        # Override rule: Force seconds to 0 for Episode 465 to stop SoundCloud widget crashing
+        if '465' in episode_id or (row['Episode'] and '465' in str(row['Episode'])):
+            seconds = 0
+            
         if not url: return '<span class="text-muted">No Link</span>'
-        if time_str == '--:--':
+        if time_str == '--:--' or seconds == 0:
             return f'<button onclick="loadTrack(\'{url}\', 0)" class="btn btn-sm btn-outline-secondary">▶ Play Mix</button>'
         return f'<button onclick="loadTrack(\'{url}\', {seconds})" class="btn btn-sm btn-orange">▶ Drop at {time_str}</button>'
 
     df['Listen'] = df.apply(make_button, axis=1)
-    df_display = df.drop(columns=['TotalSeconds', 'BaseURL'])
+    
+    # Drop columns not needed for table layout display
+    df_display = df.drop(columns=['EpisodeID', 'TotalSeconds', 'BaseURL'])
     df_display.to_html(HTML_OUTPUT, escape=False, index=False, classes="table table-striped table-hover align-middle")
 
     # Fixed style layout below (added text-align: center !important to th elements)
@@ -137,14 +146,11 @@ def launch_interface():
 </body>
 </html>"""
 
-    with open(HTML_OUTPUT, "r+", encoding="utf-8") as f:
-        content = f.read()
-        f.seek(0, 0)
-        f.write(styling + content + js_controls)
+    with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
+        f.write(styling + df_display.to_html(escape=False, index=False, classes="table table-striped table-hover align-middle") + js_controls)
     
     webbrowser.open(f"file:///{os.path.abspath(HTML_OUTPUT)}")
     print("Dashboard opened successfully.")
 
 if __name__ == "__main__":
     launch_interface()
-    
