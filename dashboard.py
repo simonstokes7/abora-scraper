@@ -81,15 +81,12 @@ def launch_interface():
         if not url: 
             return '<span class="text-muted">No Link</span>'
         
-        # Detect if the database link has any trailing numerical garbage/anomalies
         is_breaking_special = bool(re.search(r'uponly-\d{4,}', url))
         
         if is_breaking_special:
-            # Dynamically look for the actual episode digits directly inside the clean name text string
             ep_num_match = re.search(r'(?:Uplifting Only|Uuponly)\s*(\d{1,3})\b', episode_name, re.IGNORECASE)
             
             if ep_num_match:
-                # Format with standard 3-digit padding (e.g., 50 -> '050') to guarantee SoundCloud compatibility
                 raw_num = int(ep_num_match.group(1))
                 clean_url = f"https://soundcloud.com/oriuplift/uponly-{raw_num:03d}"
             else:
@@ -99,8 +96,8 @@ def launch_interface():
                 mins = seconds // 60
                 secs = seconds % 60
                 time_url = f"{clean_url}#t={mins}m{secs}s"
-                return f'<a href="{time_url}" target="_blank" onclick="var w=window.open(\'{time_url}\', \'_blank\'); setTimeout(function(){{ if(w) w.location.hash=\'#t={mins}m{secs}s\'; }}, 1500); return false;" class="btn btn-sm btn-orange">🌐 Drop at {time_str} ↗</a>'
-            return f'<a href="{clean_url}" target="_blank" class="btn btn-sm btn-outline-secondary">🌐 Open Mix ↗</a>'
+                return f'<a href="{time_url}" target="_blank" onclick="var w=window.open(\'{time_url}\', \'_blank\'); setTimeout(function(){{ if(w) w.location.hash=\'#t={mins}m{secs}s\'; }}, 1500); return false;" class="btn btn-sm btn-orange d-inline-flex align-items-center justify-content-center gap-1">🌐 Drop at {time_str}</a>'
+            return f'<a href="{clean_url}" target="_blank" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-1">🌐 Open Mix</a>'
             
         if time_str == '--:--':
             return f'<button onclick="loadTrack(\'{url}\', 0)" class="btn btn-sm btn-outline-secondary">▶ Play Mix</button>'
@@ -108,6 +105,7 @@ def launch_interface():
 
     df['Listen'] = df.apply(make_button, axis=1)
     
+    # Cleaned: Kept exactly one clean iteration of the column transformation loop
     def format_episode_cell(row):
         ep_name = str(row['Episode'])
         return f'{ep_name} <button onclick="copyTracklist(this, \'{ep_name.replace("'", "\\'")}\')" class="btn btn-link btn-copy p-0 ms-2" title="Copy Tracklist">📋 Copy</button>'
