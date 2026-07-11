@@ -76,22 +76,25 @@ def launch_interface():
         url = row['BaseURL']
         seconds = row['TotalSeconds']
         time_str = row['Start Time']
+        episode_name = str(row['Episode'])
         
         if not url: 
             return '<span class="text-muted">No Link</span>'
         
+        # Detect if the database link has any trailing numerical garbage/anomalies
         is_breaking_special = bool(re.search(r'uponly-\d{4,}', url))
         
         if is_breaking_special:
-            episode_name = str(row['Episode'])
-            ep_num_match = re.search(r'(?:Uplifting Only|Uuponly)\s*(\d{2,3})\b', episode_name, re.IGNORECASE)
+            # Dynamically look for the actual episode digits directly inside the clean name text string
+            ep_num_match = re.search(r'(?:Uplifting Only|Uuponly)\s*(\d{1,3})\b', episode_name, re.IGNORECASE)
             
             if ep_num_match:
-                ep_num = str(int(ep_num_match.group(1)))
-                clean_url = f"https://soundcloud.com/oriuplift/uponly-{ep_num}"
+                # Format with standard 3-digit padding (e.g., 50 -> '050') to guarantee SoundCloud compatibility
+                raw_num = int(ep_num_match.group(1))
+                clean_url = f"https://soundcloud.com/oriuplift/uponly-{raw_num:03d}"
             else:
                 clean_url = url
-            
+                
             if time_str != '--:--':
                 mins = seconds // 60
                 secs = seconds % 60
@@ -239,7 +242,6 @@ def launch_interface():
         }
     }
 
-    // Smart Dual-Column Row Filtering
     function filterRows(value) {
         let rows = document.querySelectorAll('table tbody tr');
         let parts = value.split(' - ');
@@ -249,14 +251,12 @@ def launch_interface():
                 let cells = rows[i].getElementsByTagName('td');
                 if (cells.length >= 7) {
                     if (parts.length === 2) {
-                        // HYBRID TRACK MODE: Strict cross-column target verification
                         let rowArtist = cells[4].textContent.toLowerCase().trim();
                         let rowTitle = cells[5].textContent.toLowerCase().trim();
                         
                         let targetArtist = parts[0].toLowerCase().trim();
                         let targetTitle = parts[1].toLowerCase().trim();
                         
-                        // Strict word boundary logic for short names/titles if needed
                         let artistMatch = targetArtist.length <= 3 ? 
                             new RegExp('\\\\b' + targetArtist.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '\\\\b', 'i').test(rowArtist) : 
                             rowArtist.includes(targetArtist);
@@ -267,7 +267,6 @@ def launch_interface():
                         
                         rows[i].style.display = (artistMatch && titleMatch) ? '' : 'none';
                     } else {
-                        // STANDARD MODE: Standard word-boundary filtering on all metadata columns
                         let sanitizedValue = value.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
                         let regexPattern = value.length <= 3 ? new RegExp('\\\\b' + sanitizedValue + '\\\\b', 'i') : new RegExp(sanitizedValue, 'i');
                         
