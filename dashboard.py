@@ -1,6 +1,7 @@
 import os
 import webbrowser
 import pandas as pd
+import re
 from sqlalchemy import create_engine
 
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_only.db"
@@ -45,24 +46,33 @@ def launch_interface():
         url = row['BaseURL']
         seconds = row['TotalSeconds']
         time_str = row['Start Time']
-        episode_id = str(row['EpisodeID'])
+        episode_name = str(row['Episode']) if row['Episode'] else ""
         
-        # Override rule: Force seconds to 0 for Episode 465 to stop SoundCloud widget crashing
-        if '465' in episode_id or (row['Episode'] and '465' in str(row['Episode'])):
-            seconds = 0
+        if not url: 
+            return '<span class="text-muted">No Link</span>'
+        
+        # Regex Match Check: Detect if this row belongs to Episode 465
+        is_episode_465 = bool(re.search(r'\b465\b|465', episode_name))
+        
+        if is_episode_465:
+            if time_str != '--:--':
+                mins = seconds // 60
+                secs = seconds % 60
+                # Using the verified #t=XmYs format to open in a new tab and auto-play at the marker
+                time_url = f"https://soundcloud.com/oriuplift/uponly-465#t={mins}m{secs}s"
+                return f'<a href="{time_url}" target="_blank" class="btn btn-sm btn-orange">🌐 Drop at {time_str} ↗</a>'
+            return f'<a href="https://soundcloud.com/oriuplift/uponly-465" target="_blank" class="btn btn-sm btn-outline-secondary">🌐 Open Mix ↗</a>'
             
-        if not url: return '<span class="text-muted">No Link</span>'
-        if time_str == '--:--' or seconds == 0:
+        # Standard player widget loading logic for all other working episodes
+        if time_str == '--:--':
             return f'<button onclick="loadTrack(\'{url}\', 0)" class="btn btn-sm btn-outline-secondary">▶ Play Mix</button>'
         return f'<button onclick="loadTrack(\'{url}\', {seconds})" class="btn btn-sm btn-orange">▶ Drop at {time_str}</button>'
 
     df['Listen'] = df.apply(make_button, axis=1)
     
-    # Drop columns not needed for table layout display
+    # Clean up fields used for processing before generating display table
     df_display = df.drop(columns=['EpisodeID', 'TotalSeconds', 'BaseURL'])
-    df_display.to_html(HTML_OUTPUT, escape=False, index=False, classes="table table-striped table-hover align-middle")
-
-    # Fixed style layout below (added text-align: center !important to th elements)
+    
     styling = """<!DOCTYPE html>
 <html>
 <head>
@@ -73,8 +83,6 @@ def launch_interface():
     <style>
         body { padding: 30px; padding-bottom: 180px; font-family: system-ui, sans-serif; background-color: #f4f6f9; }
         .vault-card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        
-        /* Centered Header Overrides */
         th { 
             background-color: #1e293b !important; 
             color: white !important; 
@@ -84,8 +92,7 @@ def launch_interface():
             text-align: center !important; 
             vertical-align: middle;
         }
-        
-        .btn-orange { background-color: #ff5500; color: white; font-weight: 500; border: none; }
+        .btn-orange { background-color: #ff5500; color: white; font-weight: 500; border: none; text-decoration: none; display: inline-block; }
         .btn-orange:hover { background-color: #e04b00; color: white; }
         #searchBox { max-width: 400px; margin-bottom: 20px; font-size: 1.1rem; }
         .audio-deck {
