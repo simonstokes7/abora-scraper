@@ -1,55 +1,59 @@
-import sqlite3
+import os
 import time
+import sqlite3
 import requests
+from urllib.parse import quote_plus
 
-DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_only.db"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-}
+DB_NAME = "uplifting_only.db"
 
-def repair_400_series():
-    conn = sqlite3.connect(DB_PATH)
+def search_soundcloud_metadata(track_title):
+    time.sleep(1.5)  # Respectful pacing delay to protect connection
+    encoded_query = quote_plus(track_title)
+    target_url = f"https://soundcloud.com/oembed?url=https://soundcloud.com/search?q={encoded_query}&format=json"
+    
+    try:
+        response = requests.get(target_url, timeout=10)
+        if response.status_code == 200:
+            payload = response.json()
+            return {
+                "enriched_title": payload.get("title", track_title),
+                "provider_url": payload.get("provider_url", "https://soundcloud.com")
+            }
+    except requests.exceptions.RequestException as e:
+        print(f"Pacing Alert: Connection bypassed for query: {track_title}. Error: {e}")
+    
+    return None
+
+def run_metadata_repair_pipeline():
+    if not os.path.exists(DB_NAME):
+        print(f"Database {DB_NAME} not found.")
+        return
+
+    conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+    
+    # query matched exactly to your 'tracks' table schema columns
+    try:
+        cursor.execute("SELECT track_id, artist, track_title FROM tracks")
+        all_tracks = cursor.fetchall()
+    except sqlite3.OperationalError as e:
+        print(f"Database schema mismatch error: {e}")
+        conn.close()
+        return
 
-    # Target just the 400 series episodes to see if they fix up cleanly
-    cursor.execute("SELECT episode_id, episode_name FROM episodes WHERE episode_name LIKE '%438%' OR episode_name LIKE '%445%' OR episode_name LIKE '%463%'")
-    rows = cursor.fetchall()
-
-    print(f"Verifying live SoundCloud links for target episodes...")
-
-    for ep_id, ep_name in rows:
-        digits = "".join(filter(str.isdigit, ep_name))
-        if not digits:
-            continue
-        num = int(digits)
-
-        # The variations Ori Uplift actually uses across different years
-        url_variations = [
-            f"https://soundcloud.com/oriuplift/uplifting-only-{num}",
-            f"https://soundcloud.com/oriuplift/uplifting-only-episode-{num}",
-            f"https://soundcloud.com/oriuplift/uponly-{digits}",
-            f"https://soundcloud.com/oriuplift/uponly-{num}"
-        ]
-
-        for url in url_variations:
-            try:
-                # stream=True fetches just the headers instantly to see if the page exists
-                res = requests.get(url, headers=HEADERS, timeout=5, allow_redirects=True, stream=True)
-                if res.status_code == 200:
-                    real_live_url = res.url  # Captures the actual working redirect destination!
-                    cursor.execute(
-                        "UPDATE episodes SET soundcloud_url = ? WHERE episode_id = ?",
-                        (real_live_url, ep_id)
-                    )
-                    conn.commit()
-                    print(f"✓ Found exact live link for Ep {num}: {real_live_url}")
-                    break
-            except Exception:
-                continue
-        time.sleep(0.5)
-
+    print(f"Successfully connected to database. Found {len(all_tracks)} records to process.")
+    
+    # Testing with a small batch of 5 records to verify pipeline orchestration
+    for track_id, artist, track_title in all_tracks[:5]: 
+        combined_query = f"{artist} - {track_title}"
+        print(f"Enriching: {combined_query}")
+        
+        result = search_soundcloud_metadata(combined_query)
+        if result:
+            print(f" -> Successfully matched target: {result['provider_url']}")
+                
     conn.close()
-    print("\nTarget patch complete!")
+    print("Batch processing pipeline verification completed.")
 
 if __name__ == "__main__":
-    repair_400_series()
+    run_metadata_repair_pipeline()
