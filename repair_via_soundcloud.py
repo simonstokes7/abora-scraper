@@ -6,19 +6,8 @@ from urllib.parse import quote_plus
 
 DB_NAME = "uplifting_only.db"
 
-def initialize_schema_extensions(cursor):
-    """
-    Safely adds the track_link column to the tracks table if it doesn't already exist.
-    """
-    try:
-        cursor.execute("ALTER TABLE tracks ADD COLUMN track_link TEXT;")
-        print("Database architecture updated: Added 'track_link' column.")
-    except sqlite3.OperationalError:
-        # The column already exists, which is perfect
-        pass
-
 def search_soundcloud_metadata(track_title):
-    time.sleep(1.5)  # 1.5-second pacing delay to respect endpoints and avoid bans
+    time.sleep(1.5)  # 1.5-second pacing delay
     encoded_query = quote_plus(track_title)
     target_url = f"https://soundcloud.com/oembed?url=https://soundcloud.com/search?q={encoded_query}&format=json"
     
@@ -26,7 +15,15 @@ def search_soundcloud_metadata(track_title):
         response = requests.get(target_url, timeout=10)
         if response.status_code == 200:
             payload = response.json()
-            return payload.get("provider_url", "https://soundcloud.com")
+            provider_url = payload.get("provider_url", "https://soundcloud.com")
+            
+            # CRITICAL FIX: If the API just sends back the generic main homepage link, 
+            # it means a specific track player target wasn't found. Let it skip.
+            if provider_url.strip("/") == "https://soundcloud.com":
+                print(f" -> Notice: Generic homepage returned for specific string: '{track_title}'. Skipping placeholder URL.")
+                return None
+                
+            return provider_url
     except requests.exceptions.RequestException as e:
         print(f"Pacing Alert: Network connection bypassed for: {track_title}. Error: {e}")
     
@@ -40,15 +37,12 @@ def run_metadata_repair_pipeline():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    # 1. Ensure the destination column exists
-    initialize_schema_extensions(cursor)
-    
-    # 2. Only pull tracks that haven't been processed yet (where track_link is missing)
+    # Process only records that don't have a valid stream track URL attached
     try:
         cursor.execute("""
             SELECT track_id, artist, track_title 
             FROM tracks 
-            WHERE track_link IS NULL OR track_link = ''
+            WHERE track_link IS NULL OR track_link = '' OR track_link = 'https://soundcloud.com'
         """)
         unprocessed_tracks = cursor.fetchall()
     except sqlite3.OperationalError as e:
@@ -56,9 +50,8 @@ def run_metadata_repair_pipeline():
         conn.close()
         return
 
-    print(f"Found {len(unprocessed_tracks)} records requiring enrichment.")
+    print(f"Found {len(unprocessed_tracks)} records requiring evaluation/correction.")
     
-    # 3. Process a safe batch of 10 tracks per run to watch it work
     for track_id, artist, track_title in unprocessed_tracks[:10]: 
         combined_query = f"{artist} - {track_title}"
         print(f"Enriching: {combined_query}")
@@ -72,9 +65,17 @@ def run_metadata_repair_pipeline():
             """, (track_url, track_id))
             conn.commit()
             print(f" -> Saved to database: {track_url}")
+        else:
+            # Explicitly mark compilation entries so they don't block subsequent script runs
+            cursor.execute("""
+                UPDATE tracks 
+                SET track_link = 'N/A - Compilation Show' 
+                WHERE track_id = ?
+            """, (track_id,))
+            conn.commit()
                 
     conn.close()
-    print("\nBatch processing commit completed successfully.")
+    print("\nBatch update processing execution completed successfully.")
 
 if __name__ == "__main__":
     run_metadata_repair_pipeline()
