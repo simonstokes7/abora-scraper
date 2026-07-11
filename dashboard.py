@@ -42,43 +42,46 @@ def launch_interface():
     print("Pulling live music data cache...")
     df = pd.read_sql(query, con=engine)
 
+    # Dynamic KPI calculations for the header
+    total_tracks = len(df)
+    total_mixes = df['Episode'].nunique()
+
     def make_button(row):
         url = row['BaseURL']
         seconds = row['TotalSeconds']
         time_str = row['Start Time']
-        episode_name = str(row['Episode']) if row['Episode'] else ""
         
         if not url: 
             return '<span class="text-muted">No Link</span>'
         
-        # Regex Match Check: Detect if this row belongs to Episode 465
-        is_episode_465 = bool(re.search(r'\b465\b|465', episode_name))
+        # Dynamic Anomaly Detection: Flag any track that uses the alternative slug pattern
+        is_anomalous_slug = "/uponly-" in url
         
-        if is_episode_465:
+        if is_anomalous_slug:
             if time_str != '--:--':
                 mins = seconds // 60
                 secs = seconds % 60
-                # Using the verified #t=XmYs format to open in a new tab and auto-play at the marker
-                time_url = f"https://soundcloud.com/oriuplift/uponly-465#t={mins}m{secs}s"
+                # Dynamically append the verified timeline hash onto the specific database URL discovered
+                time_url = f"{url}#t={mins}m{secs}s"
                 return f'<a href="{time_url}" target="_blank" class="btn btn-sm btn-orange">🌐 Drop at {time_str} ↗</a>'
-            return f'<a href="https://soundcloud.com/oriuplift/uponly-465" target="_blank" class="btn btn-sm btn-outline-secondary">🌐 Open Mix ↗</a>'
+            return f'<a href="{url}" target="_blank" class="btn btn-sm btn-outline-secondary">🌐 Open Mix ↗</a>'
             
-        # Standard player widget loading logic for all other working episodes
+        # Standard player widget loading logic for all standard structural URLs
         if time_str == '--:--':
             return f'<button onclick="loadTrack(\'{url}\', 0)" class="btn btn-sm btn-outline-secondary">▶ Play Mix</button>'
         return f'<button onclick="loadTrack(\'{url}\', {seconds})" class="btn btn-sm btn-orange">▶ Drop at {time_str}</button>'
 
     df['Listen'] = df.apply(make_button, axis=1)
     
-    # Clean up fields used for processing before generating display table
     df_display = df.drop(columns=['EpisodeID', 'TotalSeconds', 'BaseURL'])
     
     styling = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Uplifting Only Vault Console</title>
+    <title>Uplifting Only Vault Console (__MIXES__ Mixes / __TRACKS__ Tracks)</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://fav.farm/🎧"></script>
     <script src="https://w.soundcloud.com/player/api.js"></script>
     <style>
         body { padding: 30px; padding-bottom: 180px; font-family: system-ui, sans-serif; background-color: #f4f6f9; }
@@ -101,13 +104,21 @@ def launch_interface():
             padding: 10px 30px; z-index: 1000; display: flex; align-items: center; justify-content: center;
         }
         .deck-container { width: 100%; max-width: 1200px; }
+        .badge-metrics { font-size: 1.1rem; vertical-align: middle; margin-left: 10px; background-color: #475569; color: white; }
     </style>
 </head>
 <body>
 <div class="container-fluid vault-card">
-    <h2 class="mb-1">Uplifting Only Master Archive</h2>
+    <div class="d-flex align-items-center justify-content-between mb-1">
+        <h2 class="mb-0">Uplifting Only Master Archive 
+            <span class="badge badge-metrics rounded-pill">__MIXES__ Mixes</span>
+            <span class="badge badge-metrics rounded-pill">__TRACKS__ Tracks</span>
+        </h2>
+    </div>
     <p class="text-muted mb-4">Instant playback engine workspace.</p>
     <input type="text" id="searchBox" class="form-control" placeholder="🔍 Filter by artist, title, or label instantly...">"""
+
+    styling = styling.replace("__MIXES__", str(total_mixes)).replace("__TRACKS__", str(total_tracks))
 
     js_controls = """</div>
 <div class="audio-deck">
