@@ -42,56 +42,63 @@ def launch_interface():
     print("Pulling live music data cache...")
     df = pd.read_sql(query, con=engine)
 
-    # Dynamic KPI calculations for the header
     total_tracks = len(df)
     total_mixes = df['Episode'].nunique()
 
-    # Heavy Rotation Tracker - Top 100 Artists
+    # 1. Top 50 Heavy Rotation Artists
     top_artists = (df[df['Artist'].str.strip().str.lower() != '']
-                   ['Artist'].value_counts().head(100))
+                   ['Artist'].value_counts().head(50))
     
     artist_leaderboard_html = ""
     for rank, (artist, count) in enumerate(top_artists.items(), 1):
         escaped_artist = artist.replace("'", "\\'")
         artist_leaderboard_html += f"""
-        <div onclick="filterByArtist('{escaped_artist}')" class="d-flex justify-content-between align-items-center mb-1 leaderboard-row" title="Click to filter tracks by this artist">
+        <div onclick="filterBySearch('{escaped_artist}')" class="d-flex justify-content-between align-items-center mb-1 leaderboard-row" title="Click to filter tracks by this artist">
             <span><strong>#{rank}</strong> {artist}</span>
             <span class="badge bg-light text-dark rounded-pill border count-badge">{count} plays</span>
+        </div>"""
+
+    # 2. Top 50 Heavy Rotation Unique Tracks (Artist + Title Combination)
+    valid_tracks = df[(df['Artist'].str.strip() != '') & (df['Track Title'].str.strip() != '')].copy()
+    valid_tracks['Full Track'] = valid_tracks['Artist'].str.strip() + " - " + valid_tracks['Track Title'].str.strip()
+    top_tracks = valid_tracks['Full Track'].value_counts().head(50)
+    
+    track_leaderboard_html = ""
+    for rank, (full_track_name, count) in enumerate(top_tracks.items(), 1):
+        escaped_track = full_track_name.replace("'", "\\'")
+        track_leaderboard_html += f"""
+        <div onclick="filterBySearch('{escaped_track}')" class="d-flex justify-content-between align-items-center mb-1 leaderboard-row" title="Click to filter by this specific track">
+            <span class="text-truncate me-2"><strong>#{rank}</strong> {full_track_name}</span>
+            <span class="badge bg-light text-dark rounded-pill border count-badge flex-shrink-0">{count} plays</span>
         </div>"""
 
     def make_button(row):
         url = row['BaseURL']
         seconds = row['TotalSeconds']
         time_str = row['Start Time']
-        episode_name = str(row['Episode'])
         
         if not url: 
             return '<span class="text-muted">No Link</span>'
         
-        # Detect if this is one of our known anomalous special rows from the health scan
         is_breaking_special = bool(re.search(r'uponly-\d{4,}', url))
         
         if is_breaking_special:
-            # Extract the actual 2 or 3-digit show number directly from the episode text name string
+            episode_name = str(row['Episode'])
             ep_num_match = re.search(r'(?:Uplifting Only|Uuponly)\s*(\d{2,3})\b', episode_name, re.IGNORECASE)
             
             if ep_num_match:
-                # Strip leading zeros cleanly (e.g., '048' becomes '48') to match SoundCloud's live slug format
                 ep_num = str(int(ep_num_match.group(1)))
                 clean_url = f"https://soundcloud.com/oriuplift/uponly-{ep_num}"
             else:
-                # Safe generic fallback if text string matching fails
                 clean_url = url
             
             if time_str != '--:--':
                 mins = seconds // 60
                 secs = seconds % 60
-                # Revert to verified working hash pattern (#t=) with browser frame execution
                 time_url = f"{clean_url}#t={mins}m{secs}s"
                 return f'<a href="{time_url}" target="_blank" onclick="var w=window.open(\'{time_url}\', \'_blank\'); setTimeout(function(){{ if(w) w.location.hash=\'#t={mins}m{secs}s\'; }}, 1500); return false;" class="btn btn-sm btn-orange">🌐 Drop at {time_str} ↗</a>'
             return f'<a href="{clean_url}" target="_blank" class="btn btn-sm btn-outline-secondary">🌐 Open Mix ↗</a>'
             
-        # NATIVE API ROUTE: Working items stream directly into the footer deck widget
         if time_str == '--:--':
             return f'<button onclick="loadTrack(\'{url}\', 0)" class="btn btn-sm btn-outline-secondary">▶ Play Mix</button>'
         return f'<button onclick="loadTrack(\'{url}\', {seconds})" class="btn btn-sm btn-orange">▶ Drop at {time_str}</button>'
@@ -138,8 +145,8 @@ def launch_interface():
         .btn-copy { font-size: 0.8rem; text-decoration: none; color: #64748b; }
         .btn-copy:hover { color: #ff5500; }
         
-        .leaderboard-panel { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; }
-        .scrollable-leaderboard { height: 110px; overflow-y: auto; padding-right: 4px; }
+        .leaderboard-panel { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; height: 140px; }
+        .scrollable-leaderboard { height: 100px; overflow-y: auto; padding-right: 4px; }
         
         .leaderboard-row { cursor: pointer; padding: 1px 4px; border-radius: 4px; transition: background 0.1s ease; font-size: 0.78rem; line-height: 1.05; }
         .leaderboard-row:hover { background-color: #ffe5d9; color: #ff5500 !important; }
@@ -159,33 +166,48 @@ def launch_interface():
 <div class="container-fluid vault-card">
     
     <div class="row g-2 console-row">
-        <div class="col-md-7 d-flex flex-column justify-content-between py-1">
+        <div class="col-md-5 d-flex flex-column justify-content-between py-1">
             <div>
-                <h2 class="m-0 p-0" style="line-height: 1.1;">Uplifting Only Master Archive 
-                    <span class="badge badge-metrics rounded-pill">__MIXES__ Mixes</span>
-                    <span class="badge badge-metrics rounded-pill">__TRACKS__ Tracks</span>
-                </h2>
-                <p class="text-muted mt-1 mb-0" style="font-size: 0.9rem;">Instant playback engine workspace.</p>
+                <h2 class="m-0 p-0" style="line-height: 1.1; font-size: 1.6rem;">Uplifting Only Vault Console</h2>
+                <div class="mt-2">
+                    <span class="badge bg-secondary rounded-pill">__MIXES__ Mixes</span>
+                    <span class="badge bg-secondary rounded-pill">__TRACKS__ Tracks</span>
+                </div>
             </div>
             
-            <div class="d-flex gap-2 mt-3 mb-1">
-                <input type="text" id="searchBox" class="form-control" placeholder="🔍 Filter by artist, title, or label instantly...">
+            <div class="d-flex gap-2 mt-auto pt-2">
+                <input type="text" id="searchBox" class="form-control" placeholder="🔍 Filter instantly...">
                 <button onclick="playRandomTrack()" class="btn btn-dark text-nowrap">🎲 Surprise Me</button>
             </div>
         </div>
         
-        <div class="col-md-5">
-            <div class="leaderboard-panel">
-                <h6 class="text-uppercase text-muted fw-bold mb-1" style="font-size: 0.70rem; letter-spacing: 0.05em;">🔥 Heavy Rotation (Top 100 Artists)</h6>
-                <div class="scrollable-leaderboard">
-                    __LEADERBOARD__
+        <div class="col-md-7">
+            <div class="row g-2">
+                <div class="col-6">
+                    <div class="leaderboard-panel">
+                        <h6 class="text-uppercase text-muted fw-bold mb-1" style="font-size: 0.70rem; letter-spacing: 0.05em;">🔥 Top Artists (50)</h6>
+                        <div class="scrollable-leaderboard">
+                            __ARTISTS__
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="leaderboard-panel">
+                        <h6 class="text-uppercase text-muted fw-bold mb-1" style="font-size: 0.70rem; letter-spacing: 0.05em;">🎵 Top Tracks (50)</h6>
+                        <div class="scrollable-leaderboard">
+                            __TRACKS_LIST__
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 """
 
-    styling = styling.replace("__MIXES__", str(total_mixes)).replace("__TRACKS__", str(total_tracks)).replace("__LEADERBOARD__", artist_leaderboard_html)
+    styling = (styling.replace("__MIXES__", str(total_mixes))
+                      .replace("__TRACKS__", str(total_tracks))
+                      .replace("__ARTISTS__", artist_leaderboard_html)
+                      .replace("__TRACKS_LIST__", track_leaderboard_html))
 
     js_controls = """</div>
 <div class="audio-deck">
@@ -217,18 +239,56 @@ def launch_interface():
         }
     }
 
-    function filterByArtist(artistName) {
-        var searchInput = document.getElementById('searchBox');
-        searchInput.value = artistName;
-        
-        let value = artistName.toLowerCase().trim();
+    // Smart Dual-Column Row Filtering
+    function filterRows(value) {
         let rows = document.querySelectorAll('table tbody tr');
+        let parts = value.split(' - ');
+        
         window.requestAnimationFrame(() => {
             for (let i = 0; i < rows.length; i++) {
-                let text = rows[i].textContent.toLowerCase();
-                rows[i].style.display = text.includes(value) ? '' : 'none';
+                let cells = rows[i].getElementsByTagName('td');
+                if (cells.length >= 7) {
+                    if (parts.length === 2) {
+                        // HYBRID TRACK MODE: Strict cross-column target verification
+                        let rowArtist = cells[4].textContent.toLowerCase().trim();
+                        let rowTitle = cells[5].textContent.toLowerCase().trim();
+                        
+                        let targetArtist = parts[0].toLowerCase().trim();
+                        let targetTitle = parts[1].toLowerCase().trim();
+                        
+                        // Strict word boundary logic for short names/titles if needed
+                        let artistMatch = targetArtist.length <= 3 ? 
+                            new RegExp('\\\\b' + targetArtist.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '\\\\b', 'i').test(rowArtist) : 
+                            rowArtist.includes(targetArtist);
+                            
+                        let titleMatch = targetTitle.length <= 3 ? 
+                            new RegExp('\\\\b' + targetTitle.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '\\\\b', 'i').test(rowTitle) : 
+                            rowTitle.includes(targetTitle);
+                        
+                        rows[i].style.display = (artistMatch && titleMatch) ? '' : 'none';
+                    } else {
+                        // STANDARD MODE: Standard word-boundary filtering on all metadata columns
+                        let sanitizedValue = value.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                        let regexPattern = value.length <= 3 ? new RegExp('\\\\b' + sanitizedValue + '\\\\b', 'i') : new RegExp(sanitizedValue, 'i');
+                        
+                        let searchableText = (
+                            cells[0].textContent + " " +  
+                            cells[4].textContent + " " +  
+                            cells[5].textContent + " " +  
+                            cells[6].textContent          
+                        );
+                        
+                        rows[i].style.display = regexPattern.test(searchableText) ? '' : 'none';
+                    }
+                }
             }
         });
+    }
+
+    function filterBySearch(searchString) {
+        var searchInput = document.getElementById('searchBox');
+        searchInput.value = searchString;
+        filterRows(searchString.trim());
     }
 
     function playRandomTrack() {
@@ -288,14 +348,7 @@ def launch_interface():
     }
 
     document.getElementById('searchBox').addEventListener('input', function() {
-        let value = this.value.toLowerCase().trim();
-        let rows = document.querySelectorAll('table tbody tr');
-        window.requestAnimationFrame(() => {
-            for (let i = 0; i < rows.length; i++) {
-                let text = rows[i].textContent.toLowerCase();
-                rows[i].style.display = text.includes(value) ? '' : 'none';
-            }
-        });
+        filterRows(this.value.trim());
     });
 </script>
 </body>
