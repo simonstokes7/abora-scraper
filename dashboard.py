@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import create_engine
 
 # Engine Versioning Metadata Tracker
-SCRIPT_VERSION = "1.1.9"
+SCRIPT_VERSION = "1.2.1"
 BUILD_TIME = datetime.now().strftime("%b. %d, %Y @ %I:%M %p")
 
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_only.db"
@@ -109,7 +109,6 @@ def launch_interface():
 
     df['Listen'] = df.apply(make_button, axis=1)
     
-    # Extract track metadata metrics inside Python
     def extract_episode_number(text_val):
         digits = re.findall(r'\d+', str(text_val))
         return int(digits[0]) if digits else 0
@@ -142,7 +141,8 @@ def launch_interface():
 
     def format_episode_cell(row):
         ep_name = str(row['Episode'])
-        return f'<div class="episode-title-cell text-truncate" title="{ep_name}">{ep_name}</div><button onclick="copyTracklist(this, \'{ep_name.replace("'", "\\'")}\')" class="btn btn-link btn-copy p-0 ms-2" title="Copy Tracklist">📋 Copy</button>'
+        # FIXED: Relocated flex container layout internally into an inner wrapper div to insulate the parent td column boundaries
+        return f'<div class="episode-container-inner"><div class="episode-title-cell text-truncate" title="{ep_name}">{ep_name}</div><button onclick="copyTracklist(this, \'{ep_name.replace("'", "\\'")}\')" class="btn btn-link btn-copy p-0 ms-2" title="Copy Tracklist">📋 Copy</button></div>'
         
     df['Episode'] = df.apply(format_episode_cell, axis=1)
     
@@ -160,13 +160,15 @@ def launch_interface():
         body { padding: 15px; padding-bottom: 210px; font-family: system-ui, sans-serif; background-color: #f4f6f9; }
         .vault-card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         
-        /* HARDCODED FIXED COLUMN WIDTH CONTROLS */
-        table { margin-top: 5px !important; table-layout: fixed !important; width: 100% !important; }
-        th, td { vertical-align: middle !important; padding: 6px 8px !important; font-size: 0.88rem; }
+        table { margin-top: 5px !important; table-layout: fixed !important; width: 100% !important; border-collapse: separate !important; border-spacing: 0 !important; }
+        th, td { vertical-align: middle !important; padding: 10px 12px !important; font-size: 0.88rem; border-bottom: 1px solid #e2e8f0 !important; }
         
-        th { background-color: #1e293b !important; color: white !important; position: sticky; top: 0; z-index: 10; }
+        th { background-color: #1e293b !important; color: white !important; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #0f172a !important; }
         
-        /* Explicit spacing definitions for utility cells */
+        tbody tr:nth-of-type(even) { background-color: #ffffff !important; }
+        tbody tr:nth-of-type(odd) { background-color: #f1f5f9 !important; }
+        tbody tr:hover { background-color: #ffedd5 !important; transition: background 0.05s ease-in-out; }
+        
         .col-ep { width: 30% !important; }
         .col-date { width: 9% !important; text-align: center !important; }
         .col-num { width: 5% !important; text-align: center !important; }
@@ -176,13 +178,14 @@ def launch_interface():
         .col-label { width: 11% !important; }
         .col-listen { width: 11% !important; text-align: center !important; }
         
-        .episode-container-cell { display: flex; align-items: center; justify-content: space-between; overflow: hidden; }
-        .episode-title-cell { font-weight: 500; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; flex-grow: 1; }
+        /* FIXED INNER FLEX INNER CELL LAYOUT ALIGNMENTS */
+        .episode-container-inner { display: flex; align-items: center; justify-content: space-between; overflow: hidden; width: 100%; }
+        .episode-title-cell { font-weight: 600; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; flex-grow: 1; color: #0f172a; }
         .cell-truncated { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
         
         .btn-orange { background-color: #ff5500; color: white; font-weight: 500; border: none; text-decoration: none; display: inline-block; width: 100%; text-align: center; }
         .btn-orange:hover { background-color: #e04b00; color: white; }
-        .btn-outline-secondary { width: 100%; text-align: center; }
+        .btn-outline-secondary { width: 100%; text-align: center; background-color: #ffffff; }
         
         .audio-deck {
             position: fixed; bottom: 0; left: 0; right: 0;
@@ -191,7 +194,7 @@ def launch_interface():
         }
         .deck-container { width: 100%; max-width: 1200px; }
         .meta-footer { color: #94a3b8; font-size: 0.75rem; margin-top: 6px; width: 100%; max-width: 1200px; display: flex; justify-content: space-between; border-top: 1px solid #334155; padding-top: 4px; }
-        .btn-copy { font-size: 0.8rem; text-decoration: none; color: #64748b; flex-shrink: 0; }
+        .btn-copy { font-size: 0.8rem; text-decoration: none; color: #475569; flex-shrink: 0; font-weight: 500; }
         .btn-copy:hover { color: #ff5500; }
         
         .leaderboard-panel { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; height: 140px; }
@@ -274,12 +277,10 @@ def launch_interface():
     var widget = SC.Widget(iframe);
     var currentUrl = decodeURIComponent("__DEFAULT_URL__");
 
-    // STRUCTURE METRIC ALIGNMENT LAYOUT FOR ENGINE COMPILATION
     document.addEventListener("DOMContentLoaded", function() {
         let table = document.querySelector("table");
         if (!table) return;
         
-        // Inject structured column widths layout
         let colgroup = document.createElement('colgroup');
         colgroup.innerHTML = `
             <col class="col-ep">
@@ -293,7 +294,6 @@ def launch_interface():
         `;
         table.insertBefore(colgroup, table.firstChild);
         
-        // Apply responsive text handling boundaries to table cells
         let headers = table.querySelectorAll("thead th");
         let classNames = ["col-ep", "col-date", "col-num", "col-time", "col-artist", "col-title", "col-label", "col-listen"];
         headers.forEach((th, idx) => { if(classNames[idx]) th.className = classNames[idx]; });
@@ -301,7 +301,6 @@ def launch_interface():
         let rows = table.querySelectorAll("tbody tr");
         rows.forEach(row => {
             if(row.cells.length >= 8) {
-                row.cells[0].className = "episode-container-cell"; 
                 row.cells[1].className = "col-date cell-truncated"; 
                 row.cells[2].className = "col-num cell-truncated";  
                 row.cells[3].className = "col-time cell-truncated"; 
@@ -310,7 +309,6 @@ def launch_interface():
                 row.cells[6].className = "col-label cell-truncated";  
                 row.cells[7].className = "col-listen";
                 
-                // Mount hover descriptions for cut strings
                 row.cells[4].setAttribute("title", row.cells[4].textContent.trim());
                 row.cells[5].setAttribute("title", row.cells[5].textContent.trim());
                 row.cells[6].setAttribute("title", row.cells[6].textContent.trim());
@@ -340,6 +338,7 @@ def launch_interface():
         }
     }
 
+    // Window animation processing frame configurations
     function filterRows(value) {
         let rows = document.querySelectorAll('table tbody tr');
         let parts = value.split(' - ');
@@ -455,9 +454,8 @@ def launch_interface():
                               .replace("__BUILD_TIME__", BUILD_TIME)
                               .replace("__DEFAULT_URL__", default_player_url))
 
-    # FIXED SEPARATION METRIC: Re-added explicit columns list formatting parameters to match layout index mapping perfectly
     with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
-        f.write(styling + df_display.to_html(escape=False, index=False, classes="table table-striped table-hover align-middle") + js_controls)
+        f.write(styling + df_display.to_html(escape=False, index=False, classes="table align-middle") + js_controls)
     
     webbrowser.open(f"file:///{os.path.abspath(HTML_OUTPUT)}")
     print(f"Dashboard Build v{SCRIPT_VERSION} deployed successfully.")
