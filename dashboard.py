@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import create_engine
 
 # Engine Versioning Metadata Tracker
-SCRIPT_VERSION = "1.2.1"
+SCRIPT_VERSION = "1.2.3"
 BUILD_TIME = datetime.now().strftime("%b. %d, %Y @ %I:%M %p")
 
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_only.db"
@@ -141,8 +141,7 @@ def launch_interface():
 
     def format_episode_cell(row):
         ep_name = str(row['Episode'])
-        # FIXED: Relocated flex container layout internally into an inner wrapper div to insulate the parent td column boundaries
-        return f'<div class="episode-container-inner"><div class="episode-title-cell text-truncate" title="{ep_name}">{ep_name}</div><button onclick="copyTracklist(this, \'{ep_name.replace("'", "\\'")}\')" class="btn btn-link btn-copy p-0 ms-2" title="Copy Tracklist">📋 Copy</button></div>'
+        return f'<div class="episode-container-inner"><div class="episode-title-cell text-truncate" title="{ep_name}">{ep_name}</div><button onclick="copyTracklist(this, \'{ep_name.replace("'", "\\'")}\')" class="btn btn-link btn-copy-icon p-0 ms-2" title="Copy Playlist Tracklist">📋</button></div>'
         
     df['Episode'] = df.apply(format_episode_cell, axis=1)
     
@@ -163,25 +162,28 @@ def launch_interface():
         table { margin-top: 5px !important; table-layout: fixed !important; width: 100% !important; border-collapse: separate !important; border-spacing: 0 !important; }
         th, td { vertical-align: middle !important; padding: 10px 12px !important; font-size: 0.88rem; border-bottom: 1px solid #e2e8f0 !important; }
         
-        th { background-color: #1e293b !important; color: white !important; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #0f172a !important; }
+        th { background-color: #1e293b !important; color: white !important; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #0f172a !important; text-align: center !important; }
         
         tbody tr:nth-of-type(even) { background-color: #ffffff !important; }
         tbody tr:nth-of-type(odd) { background-color: #f1f5f9 !important; }
         tbody tr:hover { background-color: #ffedd5 !important; transition: background 0.05s ease-in-out; }
         
-        .col-ep { width: 30% !important; }
+        /* FIXED COLUMN CLASS DEFINITIONS */
+        .col-ep { width: 30% !important; text-align: left !important; }
         .col-date { width: 9% !important; text-align: center !important; }
         .col-num { width: 5% !important; text-align: center !important; }
         .col-time { width: 6% !important; text-align: center !important; }
-        .col-artist { width: 18% !important; }
-        .col-title { width: 18% !important; }
-        .col-label { width: 11% !important; }
+        .col-artist { width: 18% !important; text-align: left !important; }
+        .col-title { width: 18% !important; text-align: left !important; }
+        .col-label { width: 11% !important; text-align: left !important; }
         .col-listen { width: 11% !important; text-align: center !important; }
         
-        /* FIXED INNER FLEX INNER CELL LAYOUT ALIGNMENTS */
         .episode-container-inner { display: flex; align-items: center; justify-content: space-between; overflow: hidden; width: 100%; }
         .episode-title-cell { font-weight: 600; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; flex-grow: 1; color: #0f172a; }
         .cell-truncated { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+        
+        .btn-copy-icon { font-size: 0.95rem; text-decoration: none; color: #64748b; flex-shrink: 0; transition: color 0.1s ease, transform 0.1s ease; border: none; background: none; line-height: 1; }
+        .btn-copy-icon:hover { color: #ff5500; transform: scale(1.15); }
         
         .btn-orange { background-color: #ff5500; color: white; font-weight: 500; border: none; text-decoration: none; display: inline-block; width: 100%; text-align: center; }
         .btn-orange:hover { background-color: #e04b00; color: white; }
@@ -194,8 +196,6 @@ def launch_interface():
         }
         .deck-container { width: 100%; max-width: 1200px; }
         .meta-footer { color: #94a3b8; font-size: 0.75rem; margin-top: 6px; width: 100%; max-width: 1200px; display: flex; justify-content: space-between; border-top: 1px solid #334155; padding-top: 4px; }
-        .btn-copy { font-size: 0.8rem; text-decoration: none; color: #475569; flex-shrink: 0; font-weight: 500; }
-        .btn-copy:hover { color: #ff5500; }
         
         .leaderboard-panel { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; height: 140px; }
         .scrollable-leaderboard { height: 100px; overflow-y: auto; padding-right: 4px; }
@@ -301,6 +301,8 @@ def launch_interface():
         let rows = table.querySelectorAll("tbody tr");
         rows.forEach(row => {
             if(row.cells.length >= 8) {
+                // FIXED alignment structure assignments matching row index metrics
+                row.cells[0].className = "col-ep";
                 row.cells[1].className = "col-date cell-truncated"; 
                 row.cells[2].className = "col-num cell-truncated";  
                 row.cells[3].className = "col-time cell-truncated"; 
@@ -338,7 +340,6 @@ def launch_interface():
         }
     }
 
-    // Window animation processing frame configurations
     function filterRows(value) {
         let rows = document.querySelectorAll('table tbody tr');
         let parts = value.split(' - ');
@@ -432,11 +433,9 @@ def launch_interface():
         let fullText = lines.join("\\\\n");
         navigator.clipboard.writeText(fullText).then(() => {
             let originalText = btnElement.innerHTML;
-            btnElement.innerHTML = "✅ Copied!";
-            btnElement.style.color = "#22c55e";
+            btnElement.innerHTML = "✅";
             setTimeout(() => {
                 btnElement.innerHTML = originalText;
-                btnElement.style.color = "";
             }, 2000);
         }).catch(err => {
             console.error('Failed to copy playlist: ', err);
