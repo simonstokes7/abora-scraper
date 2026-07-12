@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import create_engine
 
 # Engine Versioning Metadata Tracker
-SCRIPT_VERSION = "1.1.7"
+SCRIPT_VERSION = "1.1.9"
 BUILD_TIME = datetime.now().strftime("%b. %d, %Y @ %I:%M %p")
 
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_only.db"
@@ -16,7 +16,6 @@ HTML_OUTPUT = "music_dashboard.html"
 def launch_interface():
     engine = create_engine(f"sqlite:///{DB_PATH}")
     
-    # Cleaned Schema Query: Stripped the RawEpisodeID string tracking columns completely
     query = """
         SELECT 
             e.episode_name AS [Episode], 
@@ -110,7 +109,7 @@ def launch_interface():
 
     df['Listen'] = df.apply(make_button, axis=1)
     
-    # Extract structural numbers cleanly right out of the visible Episode description string
+    # Extract track metadata metrics inside Python
     def extract_episode_number(text_val):
         digits = re.findall(r'\d+', str(text_val))
         return int(digits[0]) if digits else 0
@@ -118,10 +117,8 @@ def launch_interface():
     df['SortEpisodeID'] = df['Episode'].apply(extract_episode_number)
     df['Track_Num_Numeric'] = pd.to_numeric(df['Track #'], errors='coerce').fillna(999).astype(int)
     
-    # Sort DataFrame descending based on show numbers, and ascending for internal tracks indexes
     df = df.sort_values(by=['SortEpisodeID', 'Track_Num_Numeric'], ascending=[False, True])
     
-    # Safe validation and pre-loading engine for default player widget mounting
     default_player_url = "https://api.soundcloud.com/playlists/67635705"
     if not df.empty:
         top_row_url = df.iloc[0]['BaseURL']
@@ -145,7 +142,7 @@ def launch_interface():
 
     def format_episode_cell(row):
         ep_name = str(row['Episode'])
-        return f'{ep_name} <button onclick="copyTracklist(this, \'{ep_name.replace("'", "\\'")}\')" class="btn btn-link btn-copy p-0 ms-2" title="Copy Tracklist">📋 Copy</button>'
+        return f'<div class="episode-title-cell text-truncate" title="{ep_name}">{ep_name}</div><button onclick="copyTracklist(this, \'{ep_name.replace("'", "\\'")}\')" class="btn btn-link btn-copy p-0 ms-2" title="Copy Tracklist">📋 Copy</button>'
         
     df['Episode'] = df.apply(format_episode_cell, axis=1)
     
@@ -162,17 +159,31 @@ def launch_interface():
     <style>
         body { padding: 15px; padding-bottom: 210px; font-family: system-ui, sans-serif; background-color: #f4f6f9; }
         .vault-card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        th { 
-            background-color: #1e293b !important; 
-            color: white !important; 
-            position: sticky; 
-            top: 0; 
-            z-index: 10; 
-            text-align: center !important; 
-            vertical-align: middle;
-        }
-        .btn-orange { background-color: #ff5500; color: white; font-weight: 500; border: none; text-decoration: none; display: inline-block; }
+        
+        /* HARDCODED FIXED COLUMN WIDTH CONTROLS */
+        table { margin-top: 5px !important; table-layout: fixed !important; width: 100% !important; }
+        th, td { vertical-align: middle !important; padding: 6px 8px !important; font-size: 0.88rem; }
+        
+        th { background-color: #1e293b !important; color: white !important; position: sticky; top: 0; z-index: 10; }
+        
+        /* Explicit spacing definitions for utility cells */
+        .col-ep { width: 30% !important; }
+        .col-date { width: 9% !important; text-align: center !important; }
+        .col-num { width: 5% !important; text-align: center !important; }
+        .col-time { width: 6% !important; text-align: center !important; }
+        .col-artist { width: 18% !important; }
+        .col-title { width: 18% !important; }
+        .col-label { width: 11% !important; }
+        .col-listen { width: 11% !important; text-align: center !important; }
+        
+        .episode-container-cell { display: flex; align-items: center; justify-content: space-between; overflow: hidden; }
+        .episode-title-cell { font-weight: 500; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; flex-grow: 1; }
+        .cell-truncated { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+        
+        .btn-orange { background-color: #ff5500; color: white; font-weight: 500; border: none; text-decoration: none; display: inline-block; width: 100%; text-align: center; }
         .btn-orange:hover { background-color: #e04b00; color: white; }
+        .btn-outline-secondary { width: 100%; text-align: center; }
+        
         .audio-deck {
             position: fixed; bottom: 0; left: 0; right: 0;
             height: 175px; background: #1e293b; box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
@@ -180,7 +191,7 @@ def launch_interface():
         }
         .deck-container { width: 100%; max-width: 1200px; }
         .meta-footer { color: #94a3b8; font-size: 0.75rem; margin-top: 6px; width: 100%; max-width: 1200px; display: flex; justify-content: space-between; border-top: 1px solid #334155; padding-top: 4px; }
-        .btn-copy { font-size: 0.8rem; text-decoration: none; color: #64748b; }
+        .btn-copy { font-size: 0.8rem; text-decoration: none; color: #64748b; flex-shrink: 0; }
         .btn-copy:hover { color: #ff5500; }
         
         .leaderboard-panel { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; height: 140px; }
@@ -190,9 +201,7 @@ def launch_interface():
         .leaderboard-row:hover { background-color: #ffe5d9; color: #ff5500 !important; }
         .leaderboard-row:hover .count-badge { background-color: #ff5500 !important; color: white !important; }
         .count-badge { font-size: 0.70rem !important; padding: 0.1em 0.4em !important; }
-        
         .console-row { margin-bottom: 0px !important; }
-        table { margin-top: 5px !important; }
         
         .scrollable-leaderboard::-webkit-scrollbar { width: 5px; }
         .scrollable-leaderboard::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -265,6 +274,50 @@ def launch_interface():
     var widget = SC.Widget(iframe);
     var currentUrl = decodeURIComponent("__DEFAULT_URL__");
 
+    // STRUCTURE METRIC ALIGNMENT LAYOUT FOR ENGINE COMPILATION
+    document.addEventListener("DOMContentLoaded", function() {
+        let table = document.querySelector("table");
+        if (!table) return;
+        
+        // Inject structured column widths layout
+        let colgroup = document.createElement('colgroup');
+        colgroup.innerHTML = `
+            <col class="col-ep">
+            <col class="col-date">
+            <col class="col-num">
+            <col class="col-time">
+            <col class="col-artist">
+            <col class="col-title">
+            <col class="col-label">
+            <col class="col-listen">
+        `;
+        table.insertBefore(colgroup, table.firstChild);
+        
+        // Apply responsive text handling boundaries to table cells
+        let headers = table.querySelectorAll("thead th");
+        let classNames = ["col-ep", "col-date", "col-num", "col-time", "col-artist", "col-title", "col-label", "col-listen"];
+        headers.forEach((th, idx) => { if(classNames[idx]) th.className = classNames[idx]; });
+
+        let rows = table.querySelectorAll("tbody tr");
+        rows.forEach(row => {
+            if(row.cells.length >= 8) {
+                row.cells[0].className = "episode-container-cell"; 
+                row.cells[1].className = "col-date cell-truncated"; 
+                row.cells[2].className = "col-num cell-truncated";  
+                row.cells[3].className = "col-time cell-truncated"; 
+                row.cells[4].className = "col-artist cell-truncated"; 
+                row.cells[5].className = "col-title cell-truncated";  
+                row.cells[6].className = "col-label cell-truncated";  
+                row.cells[7].className = "col-listen";
+                
+                // Mount hover descriptions for cut strings
+                row.cells[4].setAttribute("title", row.cells[4].textContent.trim());
+                row.cells[5].setAttribute("title", row.cells[5].textContent.trim());
+                row.cells[6].setAttribute("title", row.cells[6].textContent.trim());
+            }
+        });
+    });
+
     function loadTrack(url, seconds) {
         var targetMs = seconds * 1000;
         
@@ -294,7 +347,7 @@ def launch_interface():
         window.requestAnimationFrame(() => {
             for (let i = 0; i < rows.length; i++) {
                 let cells = rows[i].getElementsByTagName('td');
-                if (cells.length >= 7) {
+                if (cells.length >= 8) {
                     if (parts.length === 2) {
                         let rowArtist = cells[4].textContent.toLowerCase().trim();
                         let rowTitle = cells[5].textContent.toLowerCase().trim();
@@ -357,7 +410,7 @@ def launch_interface():
         
         rows.forEach(row => {
             let cells = row.getElementsByTagName('td');
-            if (cells.length >= 6) {
+            if (cells.length >= 7) {
                 let cellEpText = cells[0].textContent || "";
                 if (cellEpText.includes(targetEpisode)) {
                     let trackNum = cells[2].textContent.trim();
@@ -402,6 +455,7 @@ def launch_interface():
                               .replace("__BUILD_TIME__", BUILD_TIME)
                               .replace("__DEFAULT_URL__", default_player_url))
 
+    # FIXED SEPARATION METRIC: Re-added explicit columns list formatting parameters to match layout index mapping perfectly
     with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
         f.write(styling + df_display.to_html(escape=False, index=False, classes="table table-striped table-hover align-middle") + js_controls)
     
