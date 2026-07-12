@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import create_engine
 
 # Engine Versioning Metadata Tracker
-SCRIPT_VERSION = "1.1.6"
+SCRIPT_VERSION = "1.1.7"
 BUILD_TIME = datetime.now().strftime("%b. %d, %Y @ %I:%M %p")
 
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_only.db"
@@ -16,9 +16,9 @@ HTML_OUTPUT = "music_dashboard.html"
 def launch_interface():
     engine = create_engine(f"sqlite:///{DB_PATH}")
     
+    # Cleaned Schema Query: Stripped the RawEpisodeID string tracking columns completely
     query = """
         SELECT 
-            e.episode_id AS [RawEpisodeID],
             e.episode_name AS [Episode], 
             e.air_date AS [Air Date],
             t.track_number AS [Track #], 
@@ -110,6 +110,7 @@ def launch_interface():
 
     df['Listen'] = df.apply(make_button, axis=1)
     
+    # Extract structural numbers cleanly right out of the visible Episode description string
     def extract_episode_number(text_val):
         digits = re.findall(r'\d+', str(text_val))
         return int(digits[0]) if digits else 0
@@ -117,21 +118,19 @@ def launch_interface():
     df['SortEpisodeID'] = df['Episode'].apply(extract_episode_number)
     df['Track_Num_Numeric'] = pd.to_numeric(df['Track #'], errors='coerce').fillna(999).astype(int)
     
-    # Sort descending strictly inside Python before HTML table layout construction
+    # Sort DataFrame descending based on show numbers, and ascending for internal tracks indexes
     df = df.sort_values(by=['SortEpisodeID', 'Track_Num_Numeric'], ascending=[False, True])
     
-    # BULLETPROOF DEFAULT TARGET RE-ENGINEERING
+    # Safe validation and pre-loading engine for default player widget mounting
     default_player_url = "https://api.soundcloud.com/playlists/67635705"
     if not df.empty:
         top_row_url = df.iloc[0]['BaseURL']
         episode_name = str(df.iloc[0]['Episode'])
         
         if top_row_url:
-            # Handle standard background tracks clean conversion paths
             if '/tracks/' in top_row_url and 'api.soundcloud.com' not in top_row_url:
                 track_offset = top_row_url.find('/tracks/')
                 target_raw = 'https://api.soundcloud.com' + top_row_url[track_offset:]
-            # Resolve special anomalies back into clean targets
             elif bool(re.search(r'uponly-\d{4,}', top_row_url)):
                 ep_num_match = re.search(r'(?:Uplifting Only|Uuponly)\s*(\d{1,3})\b', episode_name, re.IGNORECASE)
                 if ep_num_match:
@@ -142,7 +141,6 @@ def launch_interface():
             else:
                 target_raw = top_row_url
                 
-            # URL-encode the text payload string to protect iframe parameters from syntax breaking characters
             default_player_url = urllib.parse.quote(target_raw, safe='')
 
     def format_episode_cell(row):
