@@ -2,7 +2,13 @@ import os
 import webbrowser
 import pandas as pd
 import re
+import urllib.parse
+from datetime import datetime
 from sqlalchemy import create_engine
+
+# Engine Versioning Metadata Tracker
+SCRIPT_VERSION = "1.1.6"
+BUILD_TIME = datetime.now().strftime("%b. %d, %Y @ %I:%M %p")
 
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_only.db"
 HTML_OUTPUT = "music_dashboard.html"
@@ -12,7 +18,7 @@ def launch_interface():
     
     query = """
         SELECT 
-            e.episode_id AS [EpisodeID],
+            e.episode_id AS [RawEpisodeID],
             e.episode_name AS [Episode], 
             e.air_date AS [Air Date],
             t.track_number AS [Track #], 
@@ -35,8 +41,7 @@ def launch_interface():
             END AS [TotalSeconds],
             e.soundcloud_url AS [BaseURL]
         FROM tracks t
-        JOIN episodes e ON t.episode_id = e.episode_id
-        ORDER BY e.episode_id DESC, CAST(t.track_number AS INTEGER) ASC;
+        JOIN episodes e ON t.episode_id = e.episode_id;
     """
     
     print("Pulling live music data cache...")
@@ -105,14 +110,48 @@ def launch_interface():
 
     df['Listen'] = df.apply(make_button, axis=1)
     
-    # Cleaned: Kept exactly one clean iteration of the column transformation loop
+    def extract_episode_number(text_val):
+        digits = re.findall(r'\d+', str(text_val))
+        return int(digits[0]) if digits else 0
+
+    df['SortEpisodeID'] = df['Episode'].apply(extract_episode_number)
+    df['Track_Num_Numeric'] = pd.to_numeric(df['Track #'], errors='coerce').fillna(999).astype(int)
+    
+    # Sort descending strictly inside Python before HTML table layout construction
+    df = df.sort_values(by=['SortEpisodeID', 'Track_Num_Numeric'], ascending=[False, True])
+    
+    # BULLETPROOF DEFAULT TARGET RE-ENGINEERING
+    default_player_url = "https://api.soundcloud.com/playlists/67635705"
+    if not df.empty:
+        top_row_url = df.iloc[0]['BaseURL']
+        episode_name = str(df.iloc[0]['Episode'])
+        
+        if top_row_url:
+            # Handle standard background tracks clean conversion paths
+            if '/tracks/' in top_row_url and 'api.soundcloud.com' not in top_row_url:
+                track_offset = top_row_url.find('/tracks/')
+                target_raw = 'https://api.soundcloud.com' + top_row_url[track_offset:]
+            # Resolve special anomalies back into clean targets
+            elif bool(re.search(r'uponly-\d{4,}', top_row_url)):
+                ep_num_match = re.search(r'(?:Uplifting Only|Uuponly)\s*(\d{1,3})\b', episode_name, re.IGNORECASE)
+                if ep_num_match:
+                    raw_num = int(ep_num_match.group(1))
+                    target_raw = f"https://soundcloud.com/oriuplift/uponly-{raw_num:03d}"
+                else:
+                    target_raw = top_row_url
+            else:
+                target_raw = top_row_url
+                
+            # URL-encode the text payload string to protect iframe parameters from syntax breaking characters
+            default_player_url = urllib.parse.quote(target_raw, safe='')
+
     def format_episode_cell(row):
         ep_name = str(row['Episode'])
         return f'{ep_name} <button onclick="copyTracklist(this, \'{ep_name.replace("'", "\\'")}\')" class="btn btn-link btn-copy p-0 ms-2" title="Copy Tracklist">📋 Copy</button>'
         
     df['Episode'] = df.apply(format_episode_cell, axis=1)
     
-    df_display = df.drop(columns=['EpisodeID', 'TotalSeconds', 'BaseURL'])
+    df_display = df.drop(columns=['SortEpisodeID', 'TotalSeconds', 'BaseURL', 'Track_Num_Numeric'])
     
     styling = """<!DOCTYPE html>
 <html>
@@ -123,7 +162,7 @@ def launch_interface():
     <link rel="icon" href="https://fav.farm/🎧">
     <script src="https://w.soundcloud.com/player/api.js"></script>
     <style>
-        body { padding: 15px; padding-bottom: 180px; font-family: system-ui, sans-serif; background-color: #f4f6f9; }
+        body { padding: 15px; padding-bottom: 210px; font-family: system-ui, sans-serif; background-color: #f4f6f9; }
         .vault-card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         th { 
             background-color: #1e293b !important; 
@@ -138,11 +177,11 @@ def launch_interface():
         .btn-orange:hover { background-color: #e04b00; color: white; }
         .audio-deck {
             position: fixed; bottom: 0; left: 0; right: 0;
-            height: 140px; background: #1e293b; box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
-            padding: 10px 30px; z-index: 1000; display: flex; align-items: center; justify-content: center;
+            height: 175px; background: #1e293b; box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+            padding: 10px 30px; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
         .deck-container { width: 100%; max-width: 1200px; }
-        .badge-metrics { font-size: 1.1rem; vertical-align: middle; margin-left: 10px; background-color: #475569; color: white; }
+        .meta-footer { color: #94a3b8; font-size: 0.75rem; margin-top: 6px; width: 100%; max-width: 1200px; display: flex; justify-content: space-between; border-top: 1px solid #334155; padding-top: 4px; }
         .btn-copy { font-size: 0.8rem; text-decoration: none; color: #64748b; }
         .btn-copy:hover { color: #ff5500; }
         
@@ -214,17 +253,27 @@ def launch_interface():
 <div class="audio-deck">
     <div class="deck-container">
         <iframe id="sc-player" width="100%" height="120" scrolling="no" frameborder="no" allow="autoplay" 
-            src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/49931110&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false">
+            src="https://w.soundcloud.com/player/?url=__DEFAULT_URL__&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false">
         </iframe>
+    </div>
+    <div class="meta-footer">
+        <span>Console Status: Operational</span>
+        <span>Version: Build v__VERSION__</span>
+        <span>Generated: __BUILD_TIME__</span>
     </div>
 </div>
 <script>
     var iframe = document.getElementById('sc-player');
     var widget = SC.Widget(iframe);
-    var currentUrl = "";
+    var currentUrl = decodeURIComponent("__DEFAULT_URL__");
 
     function loadTrack(url, seconds) {
         var targetMs = seconds * 1000;
+        
+        if (url.includes('/tracks/') && !url.includes('api.soundcloud.com')) {
+            url = 'https://api.soundcloud.com' + url.substring(url.indexOf('/tracks/'));
+        }
+
         if (currentUrl !== url) {
             currentUrl = url;
             widget.load(url, {
@@ -256,16 +305,16 @@ def launch_interface():
                         let targetTitle = parts[1].toLowerCase().trim();
                         
                         let artistMatch = targetArtist.length <= 3 ? 
-                            new RegExp('\\\\b' + targetArtist.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '\\\\b', 'i').test(rowArtist) : 
+                            new RegExp('\\\\b' + targetArtist.replace(/[-\/\\\\^$*+?.()|[\\]{}]/g, '\\\\$&') + '\\\\b', 'i').test(rowArtist) : 
                             rowArtist.includes(targetArtist);
                             
                         let titleMatch = targetTitle.length <= 3 ? 
-                            new RegExp('\\\\b' + targetTitle.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '\\\\b', 'i').test(rowTitle) : 
+                            new RegExp('\\\\b' + targetTitle.replace(/[-\/\\\\^$*+?.()|[\\]{}]/g, '\\\\$&') + '\\\\b', 'i').test(rowTitle) : 
                             rowTitle.includes(targetTitle);
                         
                         rows[i].style.display = (artistMatch && titleMatch) ? '' : 'none';
                     } else {
-                        let sanitizedValue = value.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                        let sanitizedValue = value.replace(/[-\/\\\\^$*+?.()|[\\]{}]/g, '\\$&');
                         let regexPattern = value.length <= 3 ? new RegExp('\\\\b' + sanitizedValue + '\\\\b', 'i') : new RegExp(sanitizedValue, 'i');
                         
                         let searchableText = (
@@ -330,7 +379,7 @@ def launch_interface():
             return;
         }
 
-        let fullText = lines.join("\\n");
+        let fullText = lines.join("\\\\n");
         navigator.clipboard.writeText(fullText).then(() => {
             let originalText = btnElement.innerHTML;
             btnElement.innerHTML = "✅ Copied!";
@@ -351,11 +400,15 @@ def launch_interface():
 </body>
 </html>"""
 
+    js_controls = (js_controls.replace("__VERSION__", SCRIPT_VERSION)
+                              .replace("__BUILD_TIME__", BUILD_TIME)
+                              .replace("__DEFAULT_URL__", default_player_url))
+
     with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
         f.write(styling + df_display.to_html(escape=False, index=False, classes="table table-striped table-hover align-middle") + js_controls)
     
     webbrowser.open(f"file:///{os.path.abspath(HTML_OUTPUT)}")
-    print("Dashboard opened successfully.")
+    print(f"Dashboard Build v{SCRIPT_VERSION} deployed successfully.")
 
 if __name__ == "__main__":
     launch_interface()
