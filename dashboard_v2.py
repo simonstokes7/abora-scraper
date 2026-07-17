@@ -10,10 +10,10 @@ import urllib.parse
 from datetime import datetime
 from sqlalchemy import create_engine
 
-SCRIPT_VERSION = "4.0.6"
+SCRIPT_VERSION = "4.0.7"
 BUILD_TIME = datetime.now().strftime("%b. %d, %Y @ %I:%M %p")
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_vault_v2.db"
-HTML_OUTPUT = "index.html"
+HTML_OUTPUT = "music_dashboard.html"  # FIXED: Matches targeted GitHub page URL directly
 
 def launch_interface_v2():
     engine = create_engine(f"sqlite:///{DB_PATH}")
@@ -196,7 +196,7 @@ def launch_interface_v2():
         f.write(layout)
     
     webbrowser.open(HTML_OUTPUT)
-    print(f"Dashboard generated perfectly at target location: {HTML_OUTPUT}")
+    print(f"Dashboard updated successfully at target deployment location: {HTML_OUTPUT}")
 
 if __name__ == "__main__":
     launch_interface_v2()
