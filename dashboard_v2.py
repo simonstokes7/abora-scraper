@@ -10,10 +10,10 @@ import urllib.parse
 from datetime import datetime
 from sqlalchemy import create_engine
 
-SCRIPT_VERSION = "4.0.1"
+SCRIPT_VERSION = "4.0.6"
 BUILD_TIME = datetime.now().strftime("%b. %d, %Y @ %I:%M %p")
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_vault_v2.db"
-HTML_OUTPUT = "music_dashboard.html"
+HTML_OUTPUT = "index.html"
 
 def launch_interface_v2():
     engine = create_engine(f"sqlite:///{DB_PATH}")
@@ -48,7 +48,6 @@ def launch_interface_v2():
     artist_leaderboard_html = df_meta[df_meta['type'] == 'artists']['html_content'].values[0]
     track_leaderboard_html = df_meta[df_meta['type'] == 'tracks']['html_content'].values[0]
 
-    # Pre-wrap row container with copy button logic included
     df_tracks['Episode'] = df_tracks['Episode'].apply(lambda e: f'<div class="episode-container-inner"><div class="episode-title-cell text-truncate" title="{e}">{e}</div><button onclick="copyTracklist(this, \'{e.replace("'", "\\'")}\')" class="btn btn-link btn-copy-icon p-0 ms-2">📋</button></div>')
     
     table_html = df_tracks[['Episode', 'Air Date', 'Track #', 'Duration', 'Artist', 'Track Title', 'Record Label', 'Listen']].to_html(escape=False, index=False, classes="table align-middle")
@@ -57,7 +56,7 @@ def launch_interface_v2():
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Uplifting Only Vault Console v4</title>
+    <title>Uplifting Only Vault Console v__VERSION__</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <script src="https://w.soundcloud.com/player/api.js"></script>
     <style>
@@ -196,9 +195,8 @@ def launch_interface_v2():
     with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
         f.write(layout)
     
-    # Open using relative path for clean execution across deployment instances
     webbrowser.open(HTML_OUTPUT)
-    print(f"Dashboard generated successfully at: {HTML_OUTPUT}")
+    print(f"Dashboard generated perfectly at target location: {HTML_OUTPUT}")
 
 if __name__ == "__main__":
     launch_interface_v2()

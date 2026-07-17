@@ -179,19 +179,20 @@ def parse_seconds(time_val, row, track_num, artist, title):
 def parse_embedded_date(text_value):
     if pd.isna(text_value):
         return None
-    matches = re.findall(r'\(([^)]+)\)', str(text_value))
-    if not matches:
+    tokens = re.findall(r'[\(\[]([^\]\)]+)[\]\)]', str(text_value))
+    if not tokens:
         return None
-    for candidate in reversed(matches):
-        date_str = candidate.strip().replace('.', '').replace(',', '')
-        if date_str.lower().startswith('sept'):
-            date_str = re.sub(r'^sept', 'Sep', date_str, flags=re.IGNORECASE)
+    for item in reversed(tokens):
         try:
-            parsed_dt = pd.to_datetime(date_str, errors='raise')
+            parsed_dt = pd.to_datetime(item.strip(), errors='raise')
             if pd.notna(parsed_dt):
                 return parsed_dt.strftime('%Y-%m-%d')
         except Exception:
             pass
+            
+        date_str = item.strip().replace('.', '').replace(',', '')
+        if date_str.lower().startswith('sept'):
+            date_str = re.sub(r'^sept', 'Sep', date_str, flags=re.IGNORECASE)
         for fmt in ['%B %d %Y', '%b %d %Y']:
             try:
                 dt = datetime.strptime(date_str, fmt)
@@ -214,7 +215,6 @@ def import_excel_to_dashboard(excel_path, db_path):
         
     conn = initialize_database(db_path)
     
-    # Pre-parse structure lists
     parsed_tracks = []
     episodes_dict = {}
     
@@ -274,14 +274,10 @@ def import_excel_to_dashboard(excel_path, db_path):
             "start_seconds": seconds
         })
 
-    # Convert to DataFrame to process block calculations effortlessly
     tracks_df = pd.DataFrame(parsed_tracks)
     
-    # Calculate durations
     tracks_df['next_seconds'] = tracks_df.groupby('episode_name')['start_seconds'].shift(-1)
     tracks_df['duration_seconds'] = tracks_df['next_seconds'] - tracks_df['start_seconds']
-    
-    # Generate formatting strings
     tracks_df['duration_str'] = tracks_df['duration_seconds'].apply(lambda s: f"{int(s)//60}:{int(s)%60:02d}" if pd.notna(s) and s > 0 else '--:--')
     
     def precompute_time_str(s):
@@ -289,7 +285,6 @@ def import_excel_to_dashboard(excel_path, db_path):
         return f"{int(s)//60}:{int(s)%60:02d}" if s > 0 else '--:--'
     tracks_df['start_time_str'] = tracks_df['start_seconds'].apply(precompute_time_str)
 
-    # Insert episode structures and map IDs
     cursor = conn.cursor()
     episode_ids = {}
     for ep_name, ep_data in episodes_dict.items():
@@ -300,7 +295,6 @@ def import_excel_to_dashboard(excel_path, db_path):
         cursor.execute("SELECT episode_id FROM episodes WHERE episode_name = ?", (ep_name,))
         episode_ids[ep_name] = cursor.fetchone()[0]
 
-    # Pre-render HTML button elements
     logger.info("Pre-rendering database dashboard layouts...")
     for _, trk in tracks_df.iterrows():
         ep_name = trk['episode_name']
@@ -323,7 +317,6 @@ def import_excel_to_dashboard(excel_path, db_path):
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (ep_id, int(trk['track_number']), duration, trk['artist'], trk['track_title'], trk['label'], btn_html))
 
-    # Pre-compute Leaderboards HTML fragments
     logger.info("Pre-compiling leaderboard widgets...")
     top_artists = tracks_df[tracks_df['artist'].str.strip().str.lower() != '']['artist'].value_counts().head(50)
     artist_html = "".join([
