@@ -1,5 +1,17 @@
 # Abora Scraper & Music Dashboard 🎧
 
+file:///C:/Data_Projects/abora-scraper/music_dashboard.html
+
+
+Made with Gemini -  https://gemini.google.com/app/15272f04b1502919
+
+
+https://www.abora-recordings.com/uplifting-only-episodes
+
+
+github : traffic https://github.com/simonstokes7/abora-scraper/graphs/traffic
+
+
 An automated ETL data pipeline and interactive presentation dashboard designed to track, enrich, and navigate the extensive broadcast catalog of Ori Uplifting's **Uplifting Only** trance shows. 
 
 This toolkit extracts historical show tracklists, structure-maps them into a local data warehouse, enriches missing media links using external platforms, and deploys a clean web interface for seamless navigation.

@@ -1,16 +1,8 @@
-import re
+# Download the live database asset from GitHub Pages to a temporary file
+Invoke-WebRequest -Uri "https://simonstokes7.github.io/abora-scraper/uplifting_only.db" -OutFile "live_test.db"
 
-file_path = r"C:\Data_Projects\abora-scraper\Tracklists with Times.md"
-found = 0
+# Query the live file to see what link it contains
+python -c "import sqlite3; conn=sqlite3.connect('live_test.db'); c=conn.cursor(); c.execute('SELECT track_link FROM tracks WHERE episode_id=\"465\" LIMIT 1'); print('Link currently hosted on GitHub Pages:', c.fetchone()); conn.close()"
 
-with open(file_path, "r", encoding="utf-8") as f:
-    for line in f:
-        # Look for any time stamp pattern like 00:00 or [00:00] or 1:23:45
-        if re.search(r"\b\d{1,2}:\d{2}(:\d{2})?\b", line):
-            print(line.strip())
-            found += 1
-            if found >= 10:
-                break
-
-if found == 0:
-    print("Diagnostic: Scanned the entire file. Zero timestamps found.")
+# Clean up the test file
+Remove-Item live_test.db
