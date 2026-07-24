@@ -306,11 +306,28 @@ def import_excel_to_dashboard(excel_path, db_path):
         t_str = trk['start_time_str']
         duration = trk['duration_str']
         
+        # Calculate standard timestamp formatted parameters for SoundCloud deep-linking (#t=h:m:s)
+        h_param = secs // 3600
+        m_param = (secs % 3600) // 60
+        s_param = secs % 60
+        sc_timestamp_url = f"{url}#t={h_param}:{m_param}:{s_param}"
+        
+        # Pre-render layout container matching internal playback button and deep link anchor tag side-by-side
         lbl = f" @ {t_str}" if t_str != '--:--' else ""
         if secs == 0 and duration == '--:--':
-            btn_html = f'<button onclick="loadTrack(\'{url}\', 0)" class="btn btn-sm btn-outline-secondary text-nowrap">▶ Play Mix</button>'
+            btn_html = (
+                f'<div class="d-flex align-items-center gap-1">'
+                f'<button onclick="loadTrack(\'{url}\', 0)" class="btn btn-sm btn-outline-secondary text-nowrap flex-grow-1">▶ Play Mix</button>'
+                f'<a href="{url}" target="_blank" class="btn btn-sm btn-dark flex-shrink-0" title="Open mix on SoundCloud" style="background: #ff5500; border: none;">☁️</a>'
+                f'</div>'
+            )
         else:
-            btn_html = f'<button onclick="loadTrack(\'{url}\', {secs})" class="btn btn-sm btn-orange text-nowrap">▶ Play{lbl}</button>'
+            btn_html = (
+                f'<div class="d-flex align-items-center gap-1">'
+                f'<button onclick="loadTrack(\'{url}\', {secs})" class="btn btn-sm btn-orange text-nowrap flex-grow-1">▶ Play{lbl}</button>'
+                f'<a href="{sc_timestamp_url}" target="_blank" class="btn btn-sm btn-dark flex-shrink-0" title="Jump to track on SoundCloud website" style="background: #334155; border: none;">☁️</a>'
+                f'</div>'
+            )
 
         cursor.execute("""
             INSERT INTO tracks (episode_id, track_number, duration, artist, track_title, label, listen_button)

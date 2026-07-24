@@ -10,10 +10,10 @@ import urllib.parse
 from datetime import datetime
 from sqlalchemy import create_engine
 
-SCRIPT_VERSION = "4.0.7"
+SCRIPT_VERSION = "4.0.9"
 BUILD_TIME = datetime.now().strftime("%b. %d, %Y @ %I:%M %p")
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_vault_v2.db"
-HTML_OUTPUT = "music_dashboard.html"  # FIXED: Matches targeted GitHub page URL directly
+HTML_OUTPUT = "music_dashboard.html"
 
 def launch_interface_v2():
     engine = create_engine(f"sqlite:///{DB_PATH}")
@@ -68,10 +68,10 @@ def launch_interface_v2():
         tbody tr:nth-of-type(even) { background-color: #ffffff !important; }
         tbody tr:nth-of-type(odd) { background-color: #f1f5f9 !important; }
         tbody tr:hover { background-color: #ffedd5 !important; }
-        .col-ep { width: 22% !important; } .col-date { width: 9% !important; text-align: center !important; }
+        .col-ep { width: 20% !important; } .col-date { width: 9% !important; text-align: center !important; }
         .col-num { width: 5% !important; text-align: center !important; } .col-time { width: 6% !important; text-align: center !important; }
-        .col-artist { width: 18% !important; } .col-title { width: 18% !important; }
-        .col-label { width: 9% !important; } .col-listen { width: 13% !important; text-align: center !important; }
+        .col-artist { width: 17% !important; } .col-title { width: 17% !important; }
+        .col-label { width: 9% !important; } .col-listen { width: 17% !important; text-align: center !important; }
         .episode-container-inner { display: flex; align-items: center; justify-content: space-between; overflow: hidden; width: 100%; }
         .episode-title-cell { font-weight: 600; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 82%; }
         .cell-truncated { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
@@ -141,13 +141,19 @@ def launch_interface_v2():
         let q = val.toLowerCase().trim(), rows = document.querySelectorAll('table tbody tr');
         rows.forEach(r => {
             if (!q) { r.style.display = ''; return; }
+            
+            // Explicit Artist - Track filtering
             if (q.includes(' - ')) {
                 let parts = q.split(' - '), aQ = parts[0].trim(), tQ = parts[1].trim();
                 let rA = r.cells[4] ? r.cells[4].textContent.toLowerCase().trim() : '';
                 let rT = r.cells[5] ? r.cells[5].textContent.toLowerCase().trim() : '';
                 r.style.display = (rA.includes(aQ) && rT.includes(tQ)) ? '' : 'none';
             } else {
-                r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+                // Smart space-separated multi-keyword filtering
+                let keywords = q.split(/\s+/);
+                let rowText = Array.from(r.cells).map(c => c.textContent.toLowerCase()).join(' ');
+                let matchAll = keywords.every(kw => rowText.includes(kw));
+                r.style.display = matchAll ? '' : 'none';
             }
         });
     }
@@ -196,7 +202,7 @@ def launch_interface_v2():
         f.write(layout)
     
     webbrowser.open(HTML_OUTPUT)
-    print(f"Dashboard updated successfully at target deployment location: {HTML_OUTPUT}")
+    print(f"Dashboard updated to v{SCRIPT_VERSION} at: {HTML_OUTPUT}")
 
 if __name__ == "__main__":
     launch_interface_v2()
