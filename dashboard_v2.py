@@ -2,6 +2,7 @@
 """
 Ultra Light Dashboard Renderer for Abora Recordings
 Reads entirely pre-computed tables directly out of the database workspace.
+Generates a Progressive Web App (PWA) compatible HTML interface.
 """
 import os
 import webbrowser
@@ -10,7 +11,7 @@ import urllib.parse
 from datetime import datetime
 from sqlalchemy import create_engine
 
-SCRIPT_VERSION = "4.0.9"
+SCRIPT_VERSION = "4.1.0"
 BUILD_TIME = datetime.now().strftime("%b. %d, %Y @ %I:%M %p")
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_vault_v2.db"
 HTML_OUTPUT = "music_dashboard.html"
@@ -52,11 +53,20 @@ def launch_interface_v2():
     
     table_html = df_tracks[['Episode', 'Air Date', 'Track #', 'Duration', 'Artist', 'Track Title', 'Record Label', 'Listen']].to_html(escape=False, index=False, classes="table align-middle")
 
-    layout = """<!DOCTYPE html>
+    layout = r"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
     <title>Uplifting Only Vault Console v__VERSION__</title>
+    
+    <!-- PWA Requirements -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e293b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://a-v2.sndcdn.com/assets/images/sc-icons/ios-1024x1024-342a035b.png">
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <script src="https://w.soundcloud.com/player/api.js"></script>
     <style>
@@ -123,6 +133,15 @@ def launch_interface_v2():
     <div class="meta-footer"><span>Status: Operational</span><span>Build: __BUILD_TIME__</span></div>
 </div>
 <script>
+    // Register Service Worker for PWA Installation
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('SW registered!'))
+                .catch(err => console.log('SW failed:', err));
+        });
+    }
+
     var iframe = document.getElementById('sc-player'), widget = SC.Widget(iframe);
     document.addEventListener("DOMContentLoaded", function() {
         let table = document.querySelector("table"); if (!table) return;
@@ -141,15 +160,12 @@ def launch_interface_v2():
         let q = val.toLowerCase().trim(), rows = document.querySelectorAll('table tbody tr');
         rows.forEach(r => {
             if (!q) { r.style.display = ''; return; }
-            
-            // Explicit Artist - Track filtering
             if (q.includes(' - ')) {
                 let parts = q.split(' - '), aQ = parts[0].trim(), tQ = parts[1].trim();
                 let rA = r.cells[4] ? r.cells[4].textContent.toLowerCase().trim() : '';
                 let rT = r.cells[5] ? r.cells[5].textContent.toLowerCase().trim() : '';
                 r.style.display = (rA.includes(aQ) && rT.includes(tQ)) ? '' : 'none';
             } else {
-                // Smart space-separated multi-keyword filtering
                 let keywords = q.split(/\s+/);
                 let rowText = Array.from(r.cells).map(c => c.textContent.toLowerCase()).join(' ');
                 let matchAll = keywords.every(kw => rowText.includes(kw));
@@ -202,7 +218,7 @@ def launch_interface_v2():
         f.write(layout)
     
     webbrowser.open(HTML_OUTPUT)
-    print(f"Dashboard updated to v{SCRIPT_VERSION} at: {HTML_OUTPUT}")
+    print(f"PWA Dashboard compiled to v{SCRIPT_VERSION} at: {HTML_OUTPUT}")
 
 if __name__ == "__main__":
     launch_interface_v2()

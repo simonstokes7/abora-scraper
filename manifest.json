@@ -1,0 +1,22 @@
+{
+  "short_name": "UpOnly Vault",
+  "name": "Uplifting Only Vault Console",
+  "icons": [
+    {
+      "src": "https://soundcloud.com/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "https://a-v2.sndcdn.com/assets/images/sc-icons/ios-1024x1024-342a035b.png",
+      "type": "image/png",
+      "sizes": "1024x1024",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./music_dashboard.html",
+  "background_color": "#1e293b",
+  "theme_color": "#1e293b",
+  "display": "standalone",
+  "orientation": "portrait-primary"
+}
