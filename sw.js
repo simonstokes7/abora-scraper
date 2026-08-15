@@ -1,8 +1,12 @@
-const CACHE_NAME = 'uponly-vault-v1';
+const CACHE_NAME = 'uponly-vault-v2';
 const ASSETS_TO_CACHE = [
+  './',
+  './mobile.html',
   './music_dashboard.html',
   './manifest.json',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
+  './manifest_mobile.json',
+  './icon.svg',
+  'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
   'https://w.soundcloud.com/player/api.js'
 ];
 
@@ -16,7 +20,17 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((name) => {
+          if (name !== CACHE_NAME) {
+            return caches.delete(name);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
