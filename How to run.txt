@@ -1,10 +1,10 @@
 # PUBLISH TO GITHUB
 
 # Desktop Dashboard only:
-python dashboard_v2.py; git add music_dashboard.html dashboard_v2.py; git commit -m "Update desktop dashboard"; git push origin main
+python dashboard_v2.py; git add music_dashboard.html dashboard_v2.py; git commit -m "Update desktop dashboard"; git push origin main:master
 
 # Mobile App only:
-python build_mobile_app.py; git add mobile.html manifest_mobile.json sw.js build_mobile_app.py; git commit -m "Update mobile app"; git push origin main
+python build_mobile_app.py; git add mobile.html manifest_mobile.json sw.js build_mobile_app.py; git commit -m "Update mobile app"; git push origin main:master
 
 # Full Update (Spreadsheet Data + Desktop + Mobile App):
-python import_spreadsheet.py; python dashboard_v2.py; python build_mobile_app.py; git add music_dashboard.html mobile.html uplifting_vault_v2.db manifest_mobile.json sw.js dashboard_v2.py build_mobile_app.py import_spreadsheet.py; git commit -m "Update tracklists, desktop dashboard, and mobile app"; git push origin main
+python import_spreadsheet.py; python dashboard_v2.py; python build_mobile_app.py; git add music_dashboard.html mobile.html uplifting_vault_v2.db manifest_mobile.json sw.js dashboard_v2.py build_mobile_app.py import_spreadsheet.py; git commit -m "Update tracklists, desktop dashboard, and mobile app"; git push origin main:master
