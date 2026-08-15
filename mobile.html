@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Uplifting Only 🎧 Mobile App</title>
+    <title>Uplifting Only 🎧 Vault Console & Music App</title>
     
     <!-- PWA Settings -->
-    <link rel="manifest" href="manifest_mobile.json">
-    <meta name="theme-color" content="#0b0f19">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#080c14">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="UpOnly App">
+    <meta name="apple-mobile-web-app-title" content="UpOnly Vault">
     <link rel="apple-touch-icon" href="./icon.svg">
     <link rel="icon" type="image/svg+xml" href="./icon.svg">
 
-    <!-- Fonts & Icons -->
+    <!-- Fonts & SoundCloud Widget -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -26,8 +26,9 @@
             --bg-primary: #080c14;
             --bg-secondary: #0f172a;
             --bg-card: #131d33;
-            --bg-card-hover: #1c2a47;
+            --bg-card-hover: #1b2844;
             --border-color: #1e293b;
+            --border-highlight: rgba(255, 85, 0, 0.35);
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --text-sub: #64748b;
@@ -54,7 +55,7 @@
             flex-direction: column;
             overflow-x: hidden;
             padding-top: var(--safe-top);
-            padding-bottom: calc(140px + var(--safe-bottom));
+            padding-bottom: calc(145px + var(--safe-bottom));
             user-select: none;
             -webkit-font-smoothing: antialiased;
         }
@@ -64,11 +65,17 @@
             position: sticky;
             top: 0;
             z-index: 100;
-            background: rgba(8, 12, 20, 0.88);
+            background: rgba(8, 12, 20, 0.92);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-            padding: 12px 16px 8px;
+            padding: 12px 16px 10px;
+        }
+
+        .header-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            width: 100%;
         }
 
         .brand-row {
@@ -85,19 +92,19 @@
         }
 
         .brand-badge {
-            width: 34px;
-            height: 34px;
+            width: 36px;
+            height: 36px;
             background: var(--accent-gradient);
             border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.1rem;
+            font-size: 1.15rem;
             box-shadow: 0 4px 12px var(--accent-glow);
         }
 
         .brand-text h1 {
-            font-size: 1.05rem;
+            font-size: 1.1rem;
             font-weight: 800;
             letter-spacing: -0.3px;
             color: #fff;
@@ -107,18 +114,57 @@
         }
 
         .brand-text p {
-            font-size: 0.72rem;
+            font-size: 0.74rem;
             color: var(--text-muted);
             font-weight: 500;
         }
 
+        /* Desktop Nav in Header */
+        .desktop-nav-tabs {
+            display: none;
+            gap: 6px;
+        }
+
+        .desktop-nav-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            font-weight: 700;
+            padding: 7px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .desktop-nav-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .desktop-nav-btn.active {
+            background: var(--accent-gradient);
+            color: #fff;
+            border-color: var(--accent-orange);
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
         .btn-surprise {
-            background: rgba(255, 85, 0, 0.12);
+            background: rgba(255, 85, 0, 0.14);
             color: #ff8a3d;
-            border: 1px solid rgba(255, 85, 0, 0.3);
+            border: 1px solid rgba(255, 85, 0, 0.35);
             border-radius: 20px;
-            padding: 6px 12px;
-            font-size: 0.75rem;
+            padding: 7px 14px;
+            font-size: 0.78rem;
             font-weight: 700;
             display: flex;
             align-items: center;
@@ -127,10 +173,11 @@
             transition: all 0.2s ease;
         }
 
-        .btn-surprise:active {
-            transform: scale(0.94);
+        .btn-surprise:hover, .btn-surprise:active {
+            transform: scale(0.95);
             background: var(--accent-gradient);
             color: #fff;
+            box-shadow: 0 4px 14px var(--accent-glow);
         }
 
         /* Search Bar & Chips */
@@ -143,9 +190,9 @@
 
         .search-icon {
             position: absolute;
-            left: 12px;
+            left: 14px;
             color: var(--text-muted);
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             pointer-events: none;
         }
 
@@ -154,18 +201,18 @@
             background: #131d33;
             border: 1px solid #1e293b;
             border-radius: 12px;
-            padding: 10px 36px 10px 36px;
+            padding: 11px 40px 11px 42px;
             color: #fff;
-            font-size: 0.88rem;
+            font-size: 0.9rem;
             font-family: inherit;
             outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
         }
 
         .search-input:focus {
             border-color: var(--accent-orange);
             box-shadow: 0 0 0 3px rgba(255, 85, 0, 0.2);
-            background: #16223b;
+            background: #16233f;
         }
 
         .search-input::placeholder {
@@ -174,14 +221,18 @@
 
         .btn-clear-search {
             position: absolute;
-            right: 10px;
+            right: 12px;
             background: none;
             border: none;
             color: var(--text-muted);
-            font-size: 1rem;
+            font-size: 1.1rem;
             cursor: pointer;
             display: none;
             padding: 4px;
+        }
+
+        .btn-clear-search:hover {
+            color: #fff;
         }
 
         .chip-scroll {
@@ -200,13 +251,18 @@
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.08);
             color: var(--text-muted);
-            font-size: 0.74rem;
+            font-size: 0.76rem;
             font-weight: 600;
-            padding: 5px 12px;
-            border-radius: 16px;
+            padding: 6px 14px;
+            border-radius: 18px;
             white-space: nowrap;
             cursor: pointer;
             transition: all 0.2s ease;
+        }
+
+        .filter-chip:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
         }
 
         .filter-chip.active {
@@ -219,8 +275,8 @@
         /* Main Content Views */
         main.app-main {
             flex: 1;
-            padding: 12px 14px;
-            max-width: 720px;
+            padding: 14px 16px;
+            max-width: 1100px;
             margin: 0 auto;
             width: 100%;
         }
@@ -237,48 +293,56 @@
         .track-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 9px;
         }
 
         .track-card {
             background: var(--bg-card);
-            border: 1px solid rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: 14px;
-            padding: 12px 14px;
+            padding: 12px 16px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
             transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
             position: relative;
             cursor: pointer;
         }
 
-        .track-card:active {
-            transform: scale(0.985);
+        .track-card:hover {
             background: var(--bg-card-hover);
-            border-color: rgba(255, 85, 0, 0.3);
+            border-color: rgba(255, 85, 0, 0.25);
+        }
+
+        .track-card:active {
+            transform: scale(0.99);
         }
 
         .track-card.is-playing {
             border-color: var(--accent-orange);
-            background: rgba(255, 85, 0, 0.07);
+            background: rgba(255, 85, 0, 0.08);
             box-shadow: 0 4px 16px rgba(255, 85, 0, 0.15);
         }
 
         .track-num-badge {
-            width: 38px;
-            height: 38px;
+            width: 40px;
+            height: 40px;
             background: #0f172a;
             border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             font-weight: 700;
             color: var(--text-muted);
             flex-shrink: 0;
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
             transition: all 0.2s;
+        }
+
+        .track-card:hover .track-num-badge {
+            color: var(--accent-orange);
+            border-color: var(--accent-orange);
         }
 
         .track-card.is-playing .track-num-badge {
@@ -293,37 +357,37 @@
         }
 
         .track-title {
-            font-size: 0.9rem;
+            font-size: 0.94rem;
             font-weight: 700;
             color: #ffffff;
             line-height: 1.25;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            margin-bottom: 3px;
+            margin-bottom: 4px;
         }
 
         .track-artist {
-            font-size: 0.78rem;
+            font-size: 0.82rem;
             font-weight: 600;
             color: #ff8a3d;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            margin-bottom: 4px;
+            margin-bottom: 5px;
         }
 
         .track-meta-row {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 7px;
             flex-wrap: wrap;
         }
 
         .badge-pill {
-            font-size: 0.68rem;
+            font-size: 0.7rem;
             font-weight: 600;
-            padding: 2px 7px;
+            padding: 3px 8px;
             border-radius: 6px;
             background: rgba(255, 255, 255, 0.06);
             color: var(--text-muted);
@@ -345,7 +409,7 @@
         .badge-label {
             background: rgba(255, 255, 255, 0.05);
             color: #cbd5e1;
-            max-width: 110px;
+            max-width: 140px;
             overflow: hidden;
             text-overflow: ellipsis;
         }
@@ -353,21 +417,21 @@
         .track-actions {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             flex-shrink: 0;
         }
 
         .btn-action-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.08);
             color: var(--text-muted);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             cursor: pointer;
             transition: all 0.2s ease;
             text-decoration: none;
@@ -388,9 +452,9 @@
         /* Loading / Sentinel */
         .infinite-sentinel {
             text-align: center;
-            padding: 24px 0;
+            padding: 28px 0;
             color: var(--text-sub);
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -398,8 +462,8 @@
         }
 
         .spinner {
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
             border: 2px solid rgba(255, 85, 0, 0.2);
             border-top-color: var(--accent-orange);
             border-radius: 50%;
@@ -412,25 +476,25 @@
 
         /* Episodes View */
         .episodes-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
         }
 
         .episode-card {
             background: var(--bg-card);
             border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: 14px;
-            padding: 14px;
+            padding: 15px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            transition: background 0.2s, transform 0.2s;
+            gap: 11px;
+            transition: background 0.2s, transform 0.2s, border-color 0.2s;
         }
 
-        .episode-card:active {
-            transform: scale(0.99);
+        .episode-card:hover {
             background: var(--bg-card-hover);
+            border-color: rgba(255, 85, 0, 0.25);
         }
 
         .ep-card-header {
@@ -440,7 +504,7 @@
         }
 
         .ep-card-title {
-            font-size: 0.95rem;
+            font-size: 0.98rem;
             font-weight: 700;
             color: #fff;
         }
@@ -449,7 +513,7 @@
             display: flex;
             gap: 8px;
             align-items: center;
-            font-size: 0.75rem;
+            font-size: 0.78rem;
             color: var(--text-muted);
         }
 
@@ -460,9 +524,9 @@
 
         .btn-ep-action {
             flex: 1;
-            padding: 8px 12px;
+            padding: 9px 12px;
             border-radius: 10px;
-            font-size: 0.78rem;
+            font-size: 0.8rem;
             font-weight: 700;
             display: flex;
             align-items: center;
@@ -479,15 +543,29 @@
             box-shadow: 0 2px 8px var(--accent-glow);
         }
 
+        .btn-ep-play:hover {
+            opacity: 0.92;
+            transform: scale(0.98);
+        }
+
         .btn-ep-copy {
             background: rgba(255, 255, 255, 0.06);
             color: var(--text-main);
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
+        .btn-ep-copy:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
         .btn-ep-view {
             background: #1e293b;
             color: #94a3b8;
+        }
+
+        .btn-ep-view:hover {
+            color: #fff;
+            background: #25334c;
         }
 
         /* Charts View */
@@ -524,29 +602,39 @@
             box-shadow: 0 2px 8px var(--accent-glow);
         }
 
+        .chart-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
         .chart-row {
             background: var(--bg-card);
             border: 1px solid rgba(255, 255, 255, 0.04);
             border-radius: 12px;
-            padding: 12px 14px;
+            padding: 12px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 10px;
+            gap: 12px;
             cursor: pointer;
-            transition: transform 0.15s, background 0.15s;
+            transition: transform 0.15s, background 0.15s, border-color 0.15s;
+        }
+
+        .chart-row:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(255, 85, 0, 0.25);
         }
 
         .chart-row:active {
-            transform: scale(0.985);
-            background: var(--bg-card-hover);
+            transform: scale(0.99);
         }
 
         .chart-rank {
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             font-weight: 800;
             color: var(--accent-orange);
-            width: 30px;
+            width: 32px;
         }
 
         .chart-info {
@@ -555,7 +643,7 @@
         }
 
         .chart-title {
-            font-size: 0.86rem;
+            font-size: 0.88rem;
             font-weight: 700;
             color: #fff;
             white-space: nowrap;
@@ -564,16 +652,16 @@
         }
 
         .chart-subtitle {
-            font-size: 0.74rem;
+            font-size: 0.76rem;
             color: var(--text-muted);
         }
 
         .chart-count {
             background: rgba(255, 85, 0, 0.15);
             color: #ff8a3d;
-            font-size: 0.74rem;
+            font-size: 0.76rem;
             font-weight: 700;
-            padding: 4px 8px;
+            padding: 4px 10px;
             border-radius: 8px;
             white-space: nowrap;
         }
@@ -594,6 +682,7 @@
             display: flex;
             flex-direction: column;
             justify-content: flex-end;
+            align-items: center;
         }
 
         .sheet-overlay.active {
@@ -606,6 +695,8 @@
             border-top: 1px solid #1e293b;
             border-radius: 20px 20px 0 0;
             max-height: 85vh;
+            width: 100%;
+            max-width: 760px;
             display: flex;
             flex-direction: column;
             transform: translateY(100%);
@@ -618,15 +709,15 @@
         }
 
         .sheet-handle {
-            width: 40px;
-            height: 4px;
+            width: 44px;
+            height: 5px;
             background: #334155;
             border-radius: 4px;
             margin: 10px auto 6px;
         }
 
         .sheet-header {
-            padding: 10px 18px 14px;
+            padding: 10px 20px 14px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.06);
             display: flex;
             justify-content: space-between;
@@ -634,20 +725,20 @@
         }
 
         .sheet-header h3 {
-            font-size: 1.05rem;
+            font-size: 1.1rem;
             font-weight: 800;
             color: #fff;
         }
 
         .sheet-header p {
-            font-size: 0.75rem;
+            font-size: 0.78rem;
             color: var(--text-muted);
         }
 
         .sheet-body {
             flex: 1;
             overflow-y: auto;
-            padding: 14px 18px;
+            padding: 14px 20px;
             -webkit-overflow-scrolling: touch;
         }
 
@@ -655,11 +746,18 @@
             background: #1e293b;
             border: none;
             color: #fff;
-            width: 32px;
-            height: 32px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
-            font-size: 1rem;
+            font-size: 1.05rem;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-sheet-close:hover {
+            background: #334155;
         }
 
         /* Floating Mini Player & Dock */
@@ -668,36 +766,36 @@
             bottom: calc(62px + var(--safe-bottom));
             left: 12px;
             right: 12px;
-            max-width: 696px;
+            max-width: 1076px;
             margin: 0 auto;
             z-index: 200;
-            background: rgba(19, 29, 51, 0.95);
+            background: rgba(19, 29, 51, 0.96);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 85, 0, 0.3);
             border-radius: 16px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 85, 0, 0.15);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 85, 0, 0.15);
             transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
             overflow: hidden;
         }
 
         .mini-player-bar {
-            padding: 10px 14px;
+            padding: 11px 16px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
             cursor: pointer;
         }
 
         .mini-pulse-icon {
-            width: 38px;
-            height: 38px;
+            width: 40px;
+            height: 40px;
             background: var(--accent-gradient);
             border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.1rem;
+            font-size: 1.15rem;
             color: #fff;
             flex-shrink: 0;
             box-shadow: 0 2px 8px var(--accent-glow);
@@ -709,7 +807,7 @@
         }
 
         .mini-title {
-            font-size: 0.86rem;
+            font-size: 0.9rem;
             font-weight: 700;
             color: #fff;
             white-space: nowrap;
@@ -718,7 +816,7 @@
         }
 
         .mini-artist {
-            font-size: 0.74rem;
+            font-size: 0.78rem;
             color: #ff8a3d;
             white-space: nowrap;
             overflow: hidden;
@@ -728,13 +826,13 @@
         .mini-controls {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 9px;
             flex-shrink: 0;
         }
 
         .btn-mini-ctrl {
-            width: 34px;
-            height: 34px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             background: #1e293b;
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -742,27 +840,30 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             cursor: pointer;
             transition: transform 0.15s, background 0.15s;
         }
 
+        .btn-mini-ctrl:hover {
+            background: var(--accent-orange);
+        }
+
         .btn-mini-ctrl:active {
             transform: scale(0.92);
-            background: var(--accent-orange);
         }
 
         .player-expanded-body {
             max-height: 0;
             opacity: 0;
             transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.35s ease;
-            padding: 0 12px;
+            padding: 0 14px;
         }
 
         .player-dock.expanded .player-expanded-body {
             max-height: 180px;
             opacity: 1;
-            padding: 6px 12px 14px;
+            padding: 6px 14px 14px;
         }
 
         .iframe-container {
@@ -771,14 +872,14 @@
             background: #080c14;
         }
 
-        /* Bottom App Navigation Bar */
+        /* Bottom App Navigation Bar (Mobile) */
         nav.app-navbar {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
             z-index: 300;
-            background: rgba(8, 12, 20, 0.94);
+            background: rgba(8, 12, 20, 0.95);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -842,9 +943,9 @@
         }
 
         .empty-state p {
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             color: var(--text-sub);
-            max-width: 280px;
+            max-width: 320px;
             margin: 0 auto;
         }
 
@@ -858,8 +959,8 @@
             color: #fff;
             border: 1px solid var(--accent-orange);
             border-radius: 20px;
-            padding: 8px 18px;
-            font-size: 0.8rem;
+            padding: 9px 20px;
+            font-size: 0.82rem;
             font-weight: 700;
             z-index: 2000;
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
@@ -872,6 +973,63 @@
             transform: translateX(-50%) translateY(0);
             opacity: 1;
         }
+
+        /* DESKTOP RESPONSIVE BREAKPOINTS (>= 768px) */
+        @media (min-width: 768px) {
+            body {
+                padding-bottom: 100px;
+            }
+
+            header.app-header {
+                padding: 14px 24px 12px;
+            }
+
+            .desktop-nav-tabs {
+                display: flex;
+            }
+
+            nav.app-navbar {
+                display: none;
+            }
+
+            .player-dock {
+                bottom: 16px;
+                left: 20px;
+                right: 20px;
+            }
+
+            .episodes-grid {
+                grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+                gap: 14px;
+            }
+
+            .desktop-charts-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+            }
+
+            .chart-toggle-row {
+                display: none;
+            }
+
+            .desktop-chart-column {
+                background: #0f172a;
+                border: 1px solid #1e293b;
+                border-radius: 16px;
+                padding: 16px;
+            }
+
+            .desktop-chart-title {
+                font-size: 0.95rem;
+                font-weight: 800;
+                color: #fff;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -881,33 +1039,46 @@
 
 <!-- Header -->
 <header class="app-header">
-    <div class="brand-row">
-        <div class="brand-logo-wrap">
-            <div class="brand-badge">🎧</div>
-            <div class="brand-text">
-                <h1>Uplifting Only</h1>
-                <p>701 Episodes • 17,550 Tracks</p>
+    <div class="header-inner">
+        <div class="brand-row">
+            <div class="brand-logo-wrap">
+                <div class="brand-badge">🎧</div>
+                <div class="brand-text">
+                    <h1>Uplifting Only</h1>
+                    <p>701 Episodes • 17,550 Tracks</p>
+                </div>
+            </div>
+
+            <!-- Desktop Navigation Tabs -->
+            <div class="desktop-nav-tabs">
+                <button class="desktop-nav-btn active" onclick="switchTab('tracks', this)">🎵 Tracks</button>
+                <button class="desktop-nav-btn" onclick="switchTab('episodes', this)">📻 Episodes</button>
+                <button class="desktop-nav-btn" onclick="switchTab('charts', this)">🏆 Charts</button>
+                <button class="desktop-nav-btn" onclick="switchTab('favorites', this)">⭐ Saved</button>
+            </div>
+
+            <div class="header-actions">
+                <button onclick="playSurpriseTrack()" class="btn-surprise" title="Play random track">
+                    <span>🎲</span> Surprise
+                </button>
             </div>
         </div>
-        <button onclick="playSurpriseTrack()" class="btn-surprise" title="Play random track">
-            <span>🎲</span> Surprise
-        </button>
-    </div>
 
-    <!-- Search Input -->
-    <div class="search-wrap">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="globalSearch" class="search-input" placeholder="Search track, artist, label, ep #..." autocomplete="off">
-        <button id="btnClearSearch" class="btn-clear-search" onclick="clearSearch()">✕</button>
-    </div>
+        <!-- Search Input -->
+        <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="globalSearch" class="search-input" placeholder="Search track, artist, label, ep #..." autocomplete="off">
+            <button id="btnClearSearch" class="btn-clear-search" onclick="clearSearch()">✕</button>
+        </div>
 
-    <!-- Filter Chips -->
-    <div class="chip-scroll">
-        <button class="filter-chip active" onclick="applyFilter('all', this)">⚡ All Tracks</button>
-        <button class="filter-chip" onclick="applyFilter('latest', this)">🆕 Latest Mixes</button>
-        <button class="filter-chip" onclick="applyFilter('soundlift', this)">🔥 SoundLift</button>
-        <button class="filter-chip" onclick="applyFilter('abora', this)">🏷️ Abora Label</button>
-        <button class="filter-chip" onclick="applyFilter('favorites', this)">⭐ Favorites</button>
+        <!-- Filter Chips -->
+        <div class="chip-scroll">
+            <button class="filter-chip active" onclick="applyFilter('all', this)">⚡ All Tracks</button>
+            <button class="filter-chip" onclick="applyFilter('latest', this)">🆕 Latest Mixes</button>
+            <button class="filter-chip" onclick="applyFilter('soundlift', this)">🔥 SoundLift</button>
+            <button class="filter-chip" onclick="applyFilter('abora', this)">🏷️ Abora Label</button>
+            <button class="filter-chip" onclick="applyFilter('favorites', this)">⭐ Favorites</button>
+        </div>
     </div>
 </header>
 
@@ -935,12 +1106,22 @@
     <!-- 3. Top Charts View -->
     <div id="viewCharts" class="view-pane">
         <div class="charts-container">
+            <!-- Mobile Toggle -->
             <div class="chart-toggle-row">
                 <button id="btnChartArtists" class="chart-toggle-btn active" onclick="switchChartMode('artists')">🔥 Top 50 Artists</button>
                 <button id="btnChartTracks" class="chart-toggle-btn" onclick="switchChartMode('tracks')">🎵 Top 50 Tracks</button>
             </div>
-            <div id="chartContentList" class="chart-list">
-                <!-- Dynamically populated -->
+
+            <!-- Responsive Desktop/Mobile Chart Lists -->
+            <div id="desktopChartsWrap" class="desktop-charts-grid">
+                <div class="desktop-chart-column">
+                    <div class="desktop-chart-title">🔥 Top 50 Artists</div>
+                    <div id="chartArtistsList" class="chart-list"></div>
+                </div>
+                <div class="desktop-chart-column">
+                    <div class="desktop-chart-title">🎵 Top 50 Tracks</div>
+                    <div id="chartTracksList" class="chart-list"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -982,7 +1163,7 @@
     </div>
 </div>
 
-<!-- Bottom Navigation Bar -->
+<!-- Bottom Navigation Bar (Mobile) -->
 <nav class="app-navbar">
     <button class="nav-item active" onclick="switchTab('tracks', this)">
         <span class="nav-icon">🎵</span>
@@ -1002,7 +1183,7 @@
     </button>
 </nav>
 
-<!-- Episode Tracklist Sheet -->
+<!-- Episode Tracklist Sheet / Modal -->
 <div id="episodeSheet" class="sheet-overlay" onclick="closeEpisodeSheet(event)">
     <div class="bottom-sheet" onclick="event.stopPropagation()">
         <div class="sheet-handle"></div>
@@ -1013,7 +1194,7 @@
             </div>
             <button class="btn-sheet-close" onclick="closeEpisodeSheetDirect()">✕</button>
         </div>
-        <div class="p-2 d-flex gap-2" style="padding: 10px 18px 4px; display: flex; gap: 8px;">
+        <div style="padding: 12px 20px 6px; display: flex; gap: 10px;">
             <button id="btnSheetCopy" class="btn-ep-action btn-ep-copy" style="flex: 1;">📋 Copy Tracklist</button>
             <button id="btnSheetPlayMix" class="btn-ep-action btn-ep-play" style="flex: 1;">▶ Play Episode</button>
         </div>
@@ -1068,8 +1249,14 @@
     // 4. TAB NAVIGATION
     function switchTab(tabId, btn) {
         activeTab = tabId;
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        if (btn) btn.classList.add('active');
+        
+        // Synchronize mobile and desktop navigation buttons
+        document.querySelectorAll('.nav-item, .desktop-nav-btn').forEach(el => {
+            el.classList.remove('active');
+            if (el.getAttribute('onclick') && el.getAttribute('onclick').includes(tabId)) {
+                el.classList.add('active');
+            }
+        });
 
         document.querySelectorAll('.view-pane').forEach(p => p.classList.remove('active'));
         if (tabId === 'tracks') {
@@ -1210,7 +1397,7 @@
         }
 
         if (activeTab !== 'tracks') {
-            switchTab('tracks', document.querySelector('.nav-item'));
+            switchTab('tracks', document.querySelector('.desktop-nav-btn'));
         }
     }
 
@@ -1232,7 +1419,7 @@
             currentRenderIndex = 0;
             document.getElementById('tracksList').innerHTML = '';
             renderTracksChunk();
-            switchTab('tracks', document.querySelector('.nav-item'));
+            switchTab('tracks', document.querySelector('.desktop-nav-btn'));
         } else if (filterType === 'soundlift') {
             document.getElementById('globalSearch').value = 'SoundLift';
             executeSearch('SoundLift');
@@ -1240,7 +1427,7 @@
             document.getElementById('globalSearch').value = 'Abora';
             executeSearch('Abora');
         } else if (filterType === 'favorites') {
-            switchTab('favorites', document.querySelectorAll('.nav-item')[3]);
+            switchTab('favorites', document.querySelectorAll('.desktop-nav-btn')[3]);
         }
     }
 
@@ -1426,7 +1613,7 @@
         epTracks.forEach(t => {
             lines.push(`${t[2]}. ${t[4]} - ${t[5]} [${t[6]}]`);
         });
-        const fullText = lines.join('\\n');
+        const fullText = lines.join('\n');
 
         navigator.clipboard.writeText(fullText).then(() => {
             showToast(`📋 Copied ${ep.name} tracklist!`);
@@ -1445,54 +1632,71 @@
         activeChartMode = mode;
         document.getElementById('btnChartArtists').classList.toggle('active', mode === 'artists');
         document.getElementById('btnChartTracks').classList.toggle('active', mode === 'tracks');
-        renderCharts();
+        
+        // On mobile, show only selected chart
+        if (window.innerWidth < 768) {
+            document.getElementById('chartArtistsList').parentElement.style.display = (mode === 'artists') ? 'block' : 'none';
+            document.getElementById('chartTracksList').parentElement.style.display = (mode === 'tracks') ? 'block' : 'none';
+        } else {
+            document.getElementById('chartArtistsList').parentElement.style.display = 'block';
+            document.getElementById('chartTracksList').parentElement.style.display = 'block';
+        }
     }
 
     function renderCharts() {
-        const container = document.getElementById('chartContentList');
-        container.innerHTML = '';
-        const fragment = document.createDocumentFragment();
+        const artistsContainer = document.getElementById('chartArtistsList');
+        const tracksContainer = document.getElementById('chartTracksList');
+        artistsContainer.innerHTML = '';
+        tracksContainer.innerHTML = '';
 
-        if (activeChartMode === 'artists') {
-            TOP_ARTISTS.forEach(([artist, count], idx) => {
-                const row = document.createElement('div');
-                row.className = 'chart-row';
-                row.innerHTML = `
-                    <div class="chart-rank">#${idx + 1}</div>
-                    <div class="chart-info">
-                        <div class="chart-title">${escapeHtml(artist)}</div>
-                        <div class="chart-subtitle">Producer / Artist</div>
-                    </div>
-                    <div class="chart-count">${count} plays</div>
-                `;
-                row.addEventListener('click', () => {
-                    document.getElementById('globalSearch').value = artist;
-                    executeSearch(artist);
-                });
-                fragment.appendChild(row);
+        // Render Top Artists
+        const fragArtists = document.createDocumentFragment();
+        TOP_ARTISTS.forEach(([artist, count], idx) => {
+            const row = document.createElement('div');
+            row.className = 'chart-row';
+            row.innerHTML = `
+                <div class="chart-rank">#${idx + 1}</div>
+                <div class="chart-info">
+                    <div class="chart-title">${escapeHtml(artist)}</div>
+                    <div class="chart-subtitle">Producer / Artist</div>
+                </div>
+                <div class="chart-count">${count} plays</div>
+            `;
+            row.addEventListener('click', () => {
+                document.getElementById('globalSearch').value = artist;
+                executeSearch(artist);
             });
-        } else {
-            TOP_TRACKS.forEach(([artist, title, count], idx) => {
-                const row = document.createElement('div');
-                row.className = 'chart-row';
-                row.innerHTML = `
-                    <div class="chart-rank">#${idx + 1}</div>
-                    <div class="chart-info">
-                        <div class="chart-title">${escapeHtml(title)}</div>
-                        <div class="chart-subtitle">${escapeHtml(artist)}</div>
-                    </div>
-                    <div class="chart-count">${count} plays</div>
-                `;
-                row.addEventListener('click', () => {
-                    document.getElementById('globalSearch').value = `${artist} ${title}`;
-                    executeSearch(`${artist} ${title}`);
-                });
-                fragment.appendChild(row);
-            });
-        }
+            fragArtists.appendChild(row);
+        });
+        artistsContainer.appendChild(fragArtists);
 
-        container.appendChild(fragment);
+        // Render Top Tracks
+        const fragTracks = document.createDocumentFragment();
+        TOP_TRACKS.forEach(([artist, title, count], idx) => {
+            const row = document.createElement('div');
+            row.className = 'chart-row';
+            row.innerHTML = `
+                <div class="chart-rank">#${idx + 1}</div>
+                <div class="chart-info">
+                    <div class="chart-title">${escapeHtml(title)}</div>
+                    <div class="chart-subtitle">${escapeHtml(artist)}</div>
+                </div>
+                <div class="chart-count">${count} plays</div>
+            `;
+            row.addEventListener('click', () => {
+                document.getElementById('globalSearch').value = `${artist} ${title}`;
+                executeSearch(`${artist} ${title}`);
+            });
+            fragTracks.appendChild(row);
+        });
+        tracksContainer.appendChild(fragTracks);
+
+        switchChartMode(activeChartMode);
     }
+
+    window.addEventListener('resize', () => {
+        switchChartMode(activeChartMode);
+    });
 
     // 11. UTILITIES
     function formatSecs(secs) {

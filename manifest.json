@@ -1,6 +1,6 @@
 {
   "short_name": "UpOnly Vault",
-  "name": "Uplifting Only Vault Console",
+  "name": "Uplifting Only 🎧 Vault Console & Music App",
   "icons": [
     {
       "src": "./icon.svg",
@@ -15,9 +15,9 @@
       "purpose": "any maskable"
     }
   ],
-  "start_url": "./music_dashboard.html",
-  "background_color": "#1e293b",
-  "theme_color": "#1e293b",
+  "start_url": "./index.html",
+  "background_color": "#080c14",
+  "theme_color": "#080c14",
   "display": "standalone",
-  "orientation": "portrait-primary"
+  "orientation": "any"
 }

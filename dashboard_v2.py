@@ -1,224 +1,1854 @@
 # dashboard_v2.py
 """
-Ultra Light Dashboard Renderer for Abora Recordings
-Reads entirely pre-computed tables directly out of the database workspace.
-Generates a Progressive Web App (PWA) compatible HTML interface.
+Uplifting Only Universal Responsive Web App Generator
+Reads SQLite database (uplifting_vault_v2.db) and compiles the ultra-fast,
+responsive Progressive Web App (PWA) to:
+ - index.html (Root GitHub Pages entry point)
+ - music_dashboard.html (Desktop link)
+ - mobile.html (Mobile link)
 """
+
 import os
-import webbrowser
-import pandas as pd
-import urllib.parse
+import sys
+import json
+import sqlite3
+import re
 from datetime import datetime
-from sqlalchemy import create_engine
 
-SCRIPT_VERSION = "4.1.0"
-BUILD_TIME = datetime.now().strftime("%b. %d, %Y @ %I:%M %p")
 DB_PATH = r"C:\Data_Projects\abora-scraper\uplifting_vault_v2.db"
-HTML_OUTPUT = "music_dashboard.html"
+OUTPUT_FILES = [
+    r"C:\Data_Projects\abora-scraper\index.html",
+    r"C:\Data_Projects\abora-scraper\music_dashboard.html",
+    r"C:\Data_Projects\abora-scraper\mobile.html"
+]
+APP_VERSION = "4.2.0"
+BUILD_TIME = datetime.now().strftime("%b %d, %Y")
 
-def launch_interface_v2():
-    engine = create_engine(f"sqlite:///{DB_PATH}")
-    
-    print("Pulling pre-computed dashboard datasets...")
-    df_tracks = pd.read_sql("""
-        SELECT 
-            e.episode_name AS [Episode], 
-            e.air_date AS [Air Date],
-            t.track_number AS [Track #], 
-            t.duration AS [Duration],
-            t.artist AS [Artist], 
-            t.track_title AS [Track Title], 
-            t.label AS [Record Label],
-            t.listen_button AS [Listen],
-            e.soundcloud_url AS [BaseURL]
+def build_universal_app():
+    if not os.path.exists(DB_PATH):
+        print(f"Error: Database not found at {DB_PATH}")
+        sys.exit(1)
+
+    print(f"Connecting to database: {DB_PATH}")
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+
+    # 1. Fetch episodes
+    ep_rows = cur.execute("""
+        SELECT e.episode_id, e.episode_name, e.air_date, e.soundcloud_url, COUNT(t.track_id) as trk_count
+        FROM episodes e
+        LEFT JOIN tracks t ON e.episode_id = t.episode_id
+        GROUP BY e.episode_id
+        ORDER BY e.episode_id DESC
+    """).fetchall()
+
+    episodes = []
+    episodes_map = {}
+    for r in ep_rows:
+        ep_id, name, air_date, sc_url, trk_count = r
+        ep_data = {
+            "id": ep_id,
+            "name": name or f"Episode {ep_id}",
+            "date": air_date or "Unknown Date",
+            "url": sc_url or "",
+            "count": trk_count
+        }
+        episodes.append(ep_data)
+        episodes_map[ep_id] = ep_data
+
+    # 2. Fetch tracks
+    trk_rows = cur.execute("""
+        SELECT t.track_id, t.episode_id, t.track_number, t.duration, t.artist, t.track_title, t.label, t.listen_button, e.soundcloud_url
         FROM tracks t
         JOIN episodes e ON t.episode_id = e.episode_id
-        ORDER BY t.episode_id DESC, t.track_number ASC;
-    """, con=engine)
-    
-    df_meta = pd.read_sql("SELECT type, html_content FROM leaderboards;", con=engine)
-    
-    if df_tracks.empty or df_meta.empty:
-        print("Error: The database lacks pre-computed data. Please run import_spreadsheet.py.")
-        return
+        ORDER BY t.episode_id DESC, t.track_number ASC
+    """).fetchall()
 
-    total_tracks = len(df_tracks)
-    total_mixes = df_tracks['Episode'].nunique()
-    default_url = urllib.parse.quote(df_tracks.iloc[0]['BaseURL'] if df_tracks.iloc[0]['BaseURL'] else 'https://api.soundcloud.com/playlists/67635705')
+    tracks = []
+    for r in trk_rows:
+        t_id, ep_id, num, dur, artist, title, label, btn, sc_url = r
+        secs = 0
+        if btn:
+            m = re.search(r"loadTrack\('([^']+)',\s*(\d+)\)", btn)
+            if m:
+                sc_url = m.group(1)
+                secs = int(m.group(2))
+        tracks.append([
+            t_id,
+            ep_id,
+            num or 1,
+            dur or "--:--",
+            artist or "Unknown Artist",
+            title or "Unknown Title",
+            label or "Abora",
+            secs,
+            sc_url or ""
+        ])
 
-    artist_leaderboard_html = df_meta[df_meta['type'] == 'artists']['html_content'].values[0]
-    track_leaderboard_html = df_meta[df_meta['type'] == 'tracks']['html_content'].values[0]
+    # 3. Fetch Leaderboards
+    top_artists = cur.execute("""
+        SELECT artist, COUNT(*) as c 
+        FROM tracks 
+        WHERE TRIM(artist) != '' 
+        GROUP BY artist 
+        ORDER BY c DESC 
+        LIMIT 50
+    """).fetchall()
 
-    df_tracks['Episode'] = df_tracks['Episode'].apply(lambda e: f'<div class="episode-container-inner"><div class="episode-title-cell text-truncate" title="{e}">{e}</div><button onclick="copyTracklist(this, \'{e.replace("'", "\\'")}\')" class="btn btn-link btn-copy-icon p-0 ms-2">📋</button></div>')
-    
-    table_html = df_tracks[['Episode', 'Air Date', 'Track #', 'Duration', 'Artist', 'Track Title', 'Record Label', 'Listen']].to_html(escape=False, index=False, classes="table align-middle")
+    top_tracks = cur.execute("""
+        SELECT artist, track_title, COUNT(*) as c 
+        FROM tracks 
+        WHERE TRIM(track_title) != '' AND TRIM(track_title) != 'Unknown Title'
+        GROUP BY artist, track_title 
+        ORDER BY c DESC 
+        LIMIT 50
+    """).fetchall()
 
-    layout = r"""<!DOCTYPE html>
-<html>
+    con.close()
+
+    print(f"Loaded {len(episodes)} episodes, {len(tracks)} tracks, {len(top_artists)} top artists, {len(top_tracks)} top tracks.")
+
+    # Convert to compact JSON
+    tracks_json = json.dumps(tracks, separators=(',', ':'))
+    episodes_json = json.dumps(episodes, separators=(',', ':'))
+    top_artists_json = json.dumps(top_artists, separators=(',', ':'))
+    top_tracks_json = json.dumps(top_tracks, separators=(',', ':'))
+
+    default_sc_url = episodes[0]["url"] if episodes and episodes[0]["url"] else "https://soundcloud.com/oriuplift/uponly-701"
+
+    html_template = f"""<!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-    <title>Uplifting Only Vault Console v__VERSION__</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Uplifting Only 🎧 Vault Console & Music App</title>
     
-    <!-- PWA Requirements -->
+    <!-- PWA Settings -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1e293b">
+    <meta name="theme-color" content="#080c14">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="https://a-v2.sndcdn.com/assets/images/sc-icons/ios-1024x1024-342a035b.png">
+    <meta name="apple-mobile-web-app-title" content="UpOnly Vault">
+    <link rel="apple-touch-icon" href="./icon.svg">
+    <link rel="icon" type="image/svg+xml" href="./icon.svg">
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <!-- Fonts & SoundCloud Widget -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://w.soundcloud.com/player/api.js"></script>
+
     <style>
-        body { padding: 15px; padding-bottom: 210px; font-family: system-ui, sans-serif; background-color: #f4f6f9; }
-        .vault-card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        table { margin-top: 5px !important; table-layout: fixed !important; width: 100% !important; border-collapse: separate !important; border-spacing: 0 !important; }
-        th, td { vertical-align: middle !important; padding: 10px 12px !important; font-size: 0.88rem; border-bottom: 1px solid #e2e8f0 !important; }
-        th { background-color: #1e293b !important; color: white !important; position: sticky; top: 0; z-index: 10; text-align: center !important; }
-        tbody tr:nth-of-type(even) { background-color: #ffffff !important; }
-        tbody tr:nth-of-type(odd) { background-color: #f1f5f9 !important; }
-        tbody tr:hover { background-color: #ffedd5 !important; }
-        .col-ep { width: 20% !important; } .col-date { width: 9% !important; text-align: center !important; }
-        .col-num { width: 5% !important; text-align: center !important; } .col-time { width: 6% !important; text-align: center !important; }
-        .col-artist { width: 17% !important; } .col-title { width: 17% !important; }
-        .col-label { width: 9% !important; } .col-listen { width: 17% !important; text-align: center !important; }
-        .episode-container-inner { display: flex; align-items: center; justify-content: space-between; overflow: hidden; width: 100%; }
-        .episode-title-cell { font-weight: 600; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 82%; }
-        .cell-truncated { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
-        .btn-copy-icon { font-size: 0.95rem; text-decoration: none; color: #64748b; border: none; background: none; }
-        .btn-copy-icon:hover { color: #ff5500; }
-        .btn-orange { background-color: #ff5500; color: white; border: none; width: 100%; }
-        .btn-orange:hover { background-color: #e04b00; color: white; }
-        .btn-outline-secondary { width: 100%; background-color: #ffffff; }
-        .audio-deck { position: fixed; bottom: 0; left: 0; right: 0; height: 175px; background: #1e293b; padding: 10px 30px; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .deck-container { width: 100%; max-width: 1200px; }
-        .meta-footer { color: #94a3b8; font-size: 0.75rem; margin-top: 6px; width: 100%; max-width: 1200px; display: flex; justify-content: space-between; border-top: 1px solid #334155; padding-top: 4px; }
-        .leaderboard-panel { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; height: 140px; }
-        .scrollable-leaderboard { height: 100px; overflow-y: auto; }
-        .leaderboard-row { cursor: pointer; font-size: 0.78rem; }
-        .leaderboard-row:hover { color: #ff5500 !important; }
+        :root {{
+            --bg-primary: #080c14;
+            --bg-secondary: #0f172a;
+            --bg-card: #131d33;
+            --bg-card-hover: #1b2844;
+            --border-color: #1e293b;
+            --border-highlight: rgba(255, 85, 0, 0.35);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-sub: #64748b;
+            --accent-orange: #ff5500;
+            --accent-gradient: linear-gradient(135deg, #ff5500 0%, #ff8a3d 100%);
+            --accent-glow: rgba(255, 85, 0, 0.25);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --safe-top: env(safe-area-inset-top, 0px);
+        }}
+
+        * {{
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }}
+
+        body {{
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            padding-top: var(--safe-top);
+            padding-bottom: calc(145px + var(--safe-bottom));
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
+        }}
+
+        /* App Header */
+        header.app-header {{
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(8, 12, 20, 0.92);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 12px 16px 10px;
+        }}
+
+        .header-inner {{
+            max-width: 1100px;
+            margin: 0 auto;
+            width: 100%;
+        }}
+
+        .brand-row {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }}
+
+        .brand-logo-wrap {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
+
+        .brand-badge {{
+            width: 36px;
+            height: 36px;
+            background: var(--accent-gradient);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }}
+
+        .brand-text h1 {{
+            font-size: 1.1rem;
+            font-weight: 800;
+            letter-spacing: -0.3px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+
+        .brand-text p {{
+            font-size: 0.74rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }}
+
+        /* Desktop Nav in Header */
+        .desktop-nav-tabs {{
+            display: none;
+            gap: 6px;
+        }}
+
+        .desktop-nav-btn {{
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            font-weight: 700;
+            padding: 7px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+
+        .desktop-nav-btn:hover {{
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }}
+
+        .desktop-nav-btn.active {{
+            background: var(--accent-gradient);
+            color: #fff;
+            border-color: var(--accent-orange);
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }}
+
+        .header-actions {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
+
+        .btn-surprise {{
+            background: rgba(255, 85, 0, 0.14);
+            color: #ff8a3d;
+            border: 1px solid rgba(255, 85, 0, 0.35);
+            border-radius: 20px;
+            padding: 7px 14px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }}
+
+        .btn-surprise:hover, .btn-surprise:active {{
+            transform: scale(0.95);
+            background: var(--accent-gradient);
+            color: #fff;
+            box-shadow: 0 4px 14px var(--accent-glow);
+        }}
+
+        /* Search Bar & Chips */
+        .search-wrap {{
+            position: relative;
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }}
+
+        .search-icon {{
+            position: absolute;
+            left: 14px;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            pointer-events: none;
+        }}
+
+        .search-input {{
+            width: 100%;
+            background: #131d33;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 11px 40px 11px 42px;
+            color: #fff;
+            font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        }}
+
+        .search-input:focus {{
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 0 3px rgba(255, 85, 0, 0.2);
+            background: #16233f;
+        }}
+
+        .search-input::placeholder {{
+            color: var(--text-sub);
+        }}
+
+        .btn-clear-search {{
+            position: absolute;
+            right: 12px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: none;
+            padding: 4px;
+        }}
+
+        .btn-clear-search:hover {{
+            color: #fff;
+        }}
+
+        .chip-scroll {{
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            padding: 2px 0 4px;
+        }}
+
+        .chip-scroll::-webkit-scrollbar {{
+            display: none;
+        }}
+
+        .filter-chip {{
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+            font-size: 0.76rem;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 18px;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }}
+
+        .filter-chip:hover {{
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }}
+
+        .filter-chip.active {{
+            background: var(--accent-orange);
+            color: #fff;
+            border-color: var(--accent-orange);
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }}
+
+        /* Main Content Views */
+        main.app-main {{
+            flex: 1;
+            padding: 14px 16px;
+            max-width: 1100px;
+            margin: 0 auto;
+            width: 100%;
+        }}
+
+        .view-pane {{
+            display: none;
+        }}
+
+        .view-pane.active {{
+            display: block;
+        }}
+
+        /* Track Card Item */
+        .track-list {{
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }}
+
+        .track-card {{
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+            position: relative;
+            cursor: pointer;
+        }}
+
+        .track-card:hover {{
+            background: var(--bg-card-hover);
+            border-color: rgba(255, 85, 0, 0.25);
+        }}
+
+        .track-card:active {{
+            transform: scale(0.99);
+        }}
+
+        .track-card.is-playing {{
+            border-color: var(--accent-orange);
+            background: rgba(255, 85, 0, 0.08);
+            box-shadow: 0 4px 16px rgba(255, 85, 0, 0.15);
+        }}
+
+        .track-num-badge {{
+            width: 40px;
+            height: 40px;
+            background: #0f172a;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: all 0.2s;
+        }}
+
+        .track-card:hover .track-num-badge {{
+            color: var(--accent-orange);
+            border-color: var(--accent-orange);
+        }}
+
+        .track-card.is-playing .track-num-badge {{
+            background: var(--accent-gradient);
+            color: #fff;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }}
+
+        .track-details {{
+            flex: 1;
+            min-width: 0;
+        }}
+
+        .track-title {{
+            font-size: 0.94rem;
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1.25;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }}
+
+        .track-artist {{
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #ff8a3d;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 5px;
+        }}
+
+        .track-meta-row {{
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            flex-wrap: wrap;
+        }}
+
+        .badge-pill {{
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-muted);
+            white-space: nowrap;
+        }}
+
+        .badge-ep {{
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }}
+
+        .badge-time {{
+            background: rgba(255, 85, 0, 0.12);
+            color: #ff8a3d;
+            border: 1px solid rgba(255, 85, 0, 0.25);
+        }}
+
+        .badge-label {{
+            background: rgba(255, 255, 255, 0.05);
+            color: #cbd5e1;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+
+        .track-actions {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }}
+
+        .btn-action-icon {{
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }}
+
+        .btn-action-icon:hover, .btn-action-icon:active {{
+            background: rgba(255, 85, 0, 0.2);
+            color: #ff8a3d;
+            border-color: rgba(255, 85, 0, 0.4);
+        }}
+
+        .btn-action-icon.is-favorite {{
+            color: #fbbf24;
+            border-color: rgba(251, 191, 36, 0.4);
+            background: rgba(251, 191, 36, 0.15);
+        }}
+
+        /* Loading / Sentinel */
+        .infinite-sentinel {{
+            text-align: center;
+            padding: 28px 0;
+            color: var(--text-sub);
+            font-size: 0.82rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }}
+
+        .spinner {{
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 85, 0, 0.2);
+            border-top-color: var(--accent-orange);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }}
+
+        @keyframes spin {{
+            to {{ transform: rotate(360deg); }}
+        }}
+
+        /* Episodes View */
+        .episodes-grid {{
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }}
+
+        .episode-card {{
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 11px;
+            transition: background 0.2s, transform 0.2s, border-color 0.2s;
+        }}
+
+        .episode-card:hover {{
+            background: var(--bg-card-hover);
+            border-color: rgba(255, 85, 0, 0.25);
+        }}
+
+        .ep-card-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+
+        .ep-card-title {{
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: #fff;
+        }}
+
+        .ep-card-meta {{
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }}
+
+        .ep-card-actions {{
+            display: flex;
+            gap: 8px;
+        }}
+
+        .btn-ep-action {{
+            flex: 1;
+            padding: 9px 12px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }}
+
+        .btn-ep-play {{
+            background: var(--accent-gradient);
+            color: #fff;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }}
+
+        .btn-ep-play:hover {{
+            opacity: 0.92;
+            transform: scale(0.98);
+        }}
+
+        .btn-ep-copy {{
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }}
+
+        .btn-ep-copy:hover {{
+            background: rgba(255, 255, 255, 0.12);
+        }}
+
+        .btn-ep-view {{
+            background: #1e293b;
+            color: #94a3b8;
+        }}
+
+        .btn-ep-view:hover {{
+            color: #fff;
+            background: #25334c;
+        }}
+
+        /* Charts View */
+        .charts-container {{
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }}
+
+        .chart-toggle-row {{
+            display: flex;
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 4px;
+            border: 1px solid #1e293b;
+        }}
+
+        .chart-toggle-btn {{
+            flex: 1;
+            padding: 8px;
+            border-radius: 9px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }}
+
+        .chart-toggle-btn.active {{
+            background: var(--accent-orange);
+            color: #fff;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }}
+
+        .chart-list {{
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }}
+
+        .chart-row {{
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            cursor: pointer;
+            transition: transform 0.15s, background 0.15s, border-color 0.15s;
+        }}
+
+        .chart-row:hover {{
+            background: var(--bg-card-hover);
+            border-color: rgba(255, 85, 0, 0.25);
+        }}
+
+        .chart-row:active {{
+            transform: scale(0.99);
+        }}
+
+        .chart-rank {{
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: var(--accent-orange);
+            width: 32px;
+        }}
+
+        .chart-info {{
+            flex: 1;
+            min-width: 0;
+        }}
+
+        .chart-title {{
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+
+        .chart-subtitle {{
+            font-size: 0.76rem;
+            color: var(--text-muted);
+        }}
+
+        .chart-count {{
+            background: rgba(255, 85, 0, 0.15);
+            color: #ff8a3d;
+            font-size: 0.76rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 8px;
+            white-space: nowrap;
+        }}
+
+        /* Tracklist Modal / Bottom Sheet */
+        .sheet-overlay {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+        }}
+
+        .sheet-overlay.active {{
+            opacity: 1;
+            pointer-events: auto;
+        }}
+
+        .bottom-sheet {{
+            background: #0f172a;
+            border-top: 1px solid #1e293b;
+            border-radius: 20px 20px 0 0;
+            max-height: 85vh;
+            width: 100%;
+            max-width: 760px;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            padding-bottom: calc(15px + var(--safe-bottom));
+        }}
+
+        .sheet-overlay.active .bottom-sheet {{
+            transform: translateY(0);
+        }}
+
+        .sheet-handle {{
+            width: 44px;
+            height: 5px;
+            background: #334155;
+            border-radius: 4px;
+            margin: 10px auto 6px;
+        }}
+
+        .sheet-header {{
+            padding: 10px 20px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+
+        .sheet-header h3 {{
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #fff;
+        }}
+
+        .sheet-header p {{
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }}
+
+        .sheet-body {{
+            flex: 1;
+            overflow-y: auto;
+            padding: 14px 20px;
+            -webkit-overflow-scrolling: touch;
+        }}
+
+        .btn-sheet-close {{
+            background: #1e293b;
+            border: none;
+            color: #fff;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            font-size: 1.05rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+
+        .btn-sheet-close:hover {{
+            background: #334155;
+        }}
+
+        /* Floating Mini Player & Dock */
+        .player-dock {{
+            position: fixed;
+            bottom: calc(62px + var(--safe-bottom));
+            left: 12px;
+            right: 12px;
+            max-width: 1076px;
+            margin: 0 auto;
+            z-index: 200;
+            background: rgba(19, 29, 51, 0.96);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 85, 0, 0.3);
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 85, 0, 0.15);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow: hidden;
+        }}
+
+        .mini-player-bar {{
+            padding: 11px 16px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            cursor: pointer;
+        }}
+
+        .mini-pulse-icon {{
+            width: 40px;
+            height: 40px;
+            background: var(--accent-gradient);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            color: #fff;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }}
+
+        .mini-track-info {{
+            flex: 1;
+            min-width: 0;
+        }}
+
+        .mini-title {{
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+
+        .mini-artist {{
+            font-size: 0.78rem;
+            color: #ff8a3d;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+
+        .mini-controls {{
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            flex-shrink: 0;
+        }}
+
+        .btn-mini-ctrl {{
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: transform 0.15s, background 0.15s;
+        }}
+
+        .btn-mini-ctrl:hover {{
+            background: var(--accent-orange);
+        }}
+
+        .btn-mini-ctrl:active {{
+            transform: scale(0.92);
+        }}
+
+        .player-expanded-body {{
+            max-height: 0;
+            opacity: 0;
+            transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.35s ease;
+            padding: 0 14px;
+        }}
+
+        .player-dock.expanded .player-expanded-body {{
+            max-height: 180px;
+            opacity: 1;
+            padding: 6px 14px 14px;
+        }}
+
+        .iframe-container {{
+            border-radius: 12px;
+            overflow: hidden;
+            background: #080c14;
+        }}
+
+        /* Bottom App Navigation Bar (Mobile) */
+        nav.app-navbar {{
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 300;
+            background: rgba(8, 12, 20, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 6px 0 calc(6px + var(--safe-bottom));
+        }}
+
+        .nav-item {{
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            color: var(--text-sub);
+            text-decoration: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 0;
+            transition: color 0.2s ease, transform 0.15s ease;
+        }}
+
+        .nav-item:active {{
+            transform: scale(0.92);
+        }}
+
+        .nav-item.active {{
+            color: var(--accent-orange);
+        }}
+
+        .nav-icon {{
+            font-size: 1.25rem;
+            line-height: 1;
+        }}
+
+        .nav-label {{
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: -0.1px;
+        }}
+
+        /* Empty State */
+        .empty-state {{
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--text-muted);
+        }}
+
+        .empty-icon {{
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+        }}
+
+        .empty-state h4 {{
+            color: #fff;
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }}
+
+        .empty-state p {{
+            font-size: 0.82rem;
+            color: var(--text-sub);
+            max-width: 320px;
+            margin: 0 auto;
+        }}
+
+        /* Toast notification */
+        .toast-notify {{
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-60px);
+            background: #1e293b;
+            color: #fff;
+            border: 1px solid var(--accent-orange);
+            border-radius: 20px;
+            padding: 9px 20px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            z-index: 2000;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+        }}
+
+        .toast-notify.show {{
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }}
+
+        /* DESKTOP RESPONSIVE BREAKPOINTS (>= 768px) */
+        @media (min-width: 768px) {{
+            body {{
+                padding-bottom: 100px;
+            }}
+
+            header.app-header {{
+                padding: 14px 24px 12px;
+            }}
+
+            .desktop-nav-tabs {{
+                display: flex;
+            }}
+
+            nav.app-navbar {{
+                display: none;
+            }}
+
+            .player-dock {{
+                bottom: 16px;
+                left: 20px;
+                right: 20px;
+            }}
+
+            .episodes-grid {{
+                grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+                gap: 14px;
+            }}
+
+            .desktop-charts-grid {{
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+            }}
+
+            .chart-toggle-row {{
+                display: none;
+            }}
+
+            .desktop-chart-column {{
+                background: #0f172a;
+                border: 1px solid #1e293b;
+                border-radius: 16px;
+                padding: 16px;
+            }}
+
+            .desktop-chart-title {{
+                font-size: 0.95rem;
+                font-weight: 800;
+                color: #fff;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }}
+        }}
     </style>
 </head>
 <body>
-<div class="container-fluid vault-card">
-    <div class="row g-2">
-        <div class="col-md-5 d-flex flex-column justify-content-between py-1">
-            <div>
-                <h2>Uplifting Only Vault Console <span class="text-muted" style="font-size: 1rem;">v__VERSION__</span></h2>
-                <div class="mt-2">
-                    <span class="badge bg-dark">__MIXES__ Mixes</span>
-                    <span class="badge bg-secondary">__TRACKS__ Tracks</span>
+
+<!-- Toast Notification -->
+<div id="appToast" class="toast-notify">📋 Tracklist copied!</div>
+
+<!-- Header -->
+<header class="app-header">
+    <div class="header-inner">
+        <div class="brand-row">
+            <div class="brand-logo-wrap">
+                <div class="brand-badge">🎧</div>
+                <div class="brand-text">
+                    <h1>Uplifting Only</h1>
+                    <p>{len(episodes)} Episodes • {len(tracks):,} Tracks</p>
                 </div>
             </div>
-            <div class="d-flex gap-2 pt-2">
-                <input type="text" id="searchBox" class="form-control" placeholder="🔍 Filter instantly...">
-                <button onclick="playRandomTrack()" class="btn btn-dark text-nowrap" style="white-space: nowrap;">🎲 Surprise Me</button>
+
+            <!-- Desktop Navigation Tabs -->
+            <div class="desktop-nav-tabs">
+                <button class="desktop-nav-btn active" onclick="switchTab('tracks', this)">🎵 Tracks</button>
+                <button class="desktop-nav-btn" onclick="switchTab('episodes', this)">📻 Episodes</button>
+                <button class="desktop-nav-btn" onclick="switchTab('charts', this)">🏆 Charts</button>
+                <button class="desktop-nav-btn" onclick="switchTab('favorites', this)">⭐ Saved</button>
+            </div>
+
+            <div class="header-actions">
+                <button onclick="playSurpriseTrack()" class="btn-surprise" title="Play random track">
+                    <span>🎲</span> Surprise
+                </button>
             </div>
         </div>
-        <div class="col-md-7">
-            <div class="row g-2">
-                <div class="col-6"><div class="leaderboard-panel"><h6>🔥 Top Artists</h6><div class="scrollable-leaderboard">__ARTISTS__</div></div></div>
-                <div class="col-6"><div class="leaderboard-panel"><h6>🎵 Top Tracks</h6><div class="scrollable-leaderboard">__TRACKS_LIST__</div></div></div>
+
+        <!-- Search Input -->
+        <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="globalSearch" class="search-input" placeholder="Search track, artist, label, ep #..." autocomplete="off">
+            <button id="btnClearSearch" class="btn-clear-search" onclick="clearSearch()">✕</button>
+        </div>
+
+        <!-- Filter Chips -->
+        <div class="chip-scroll">
+            <button class="filter-chip active" onclick="applyFilter('all', this)">⚡ All Tracks</button>
+            <button class="filter-chip" onclick="applyFilter('latest', this)">🆕 Latest Mixes</button>
+            <button class="filter-chip" onclick="applyFilter('soundlift', this)">🔥 SoundLift</button>
+            <button class="filter-chip" onclick="applyFilter('abora', this)">🏷️ Abora Label</button>
+            <button class="filter-chip" onclick="applyFilter('favorites', this)">⭐ Favorites</button>
+        </div>
+    </div>
+</header>
+
+<!-- Main Views -->
+<main class="app-main">
+
+    <!-- 1. Tracks View (Infinite Scroll) -->
+    <div id="viewTracks" class="view-pane active">
+        <div id="tracksList" class="track-list">
+            <!-- Dynamically populated -->
+        </div>
+        <div id="tracksSentinel" class="infinite-sentinel">
+            <div class="spinner"></div>
+            <span>Loading tracks...</span>
+        </div>
+    </div>
+
+    <!-- 2. Episodes View -->
+    <div id="viewEpisodes" class="view-pane">
+        <div id="episodesList" class="episodes-grid">
+            <!-- Dynamically populated -->
+        </div>
+    </div>
+
+    <!-- 3. Top Charts View -->
+    <div id="viewCharts" class="view-pane">
+        <div class="charts-container">
+            <!-- Mobile Toggle -->
+            <div class="chart-toggle-row">
+                <button id="btnChartArtists" class="chart-toggle-btn active" onclick="switchChartMode('artists')">🔥 Top 50 Artists</button>
+                <button id="btnChartTracks" class="chart-toggle-btn" onclick="switchChartMode('tracks')">🎵 Top 50 Tracks</button>
+            </div>
+
+            <!-- Responsive Desktop/Mobile Chart Lists -->
+            <div id="desktopChartsWrap" class="desktop-charts-grid">
+                <div class="desktop-chart-column">
+                    <div class="desktop-chart-title">🔥 Top 50 Artists</div>
+                    <div id="chartArtistsList" class="chart-list"></div>
+                </div>
+                <div class="desktop-chart-column">
+                    <div class="desktop-chart-title">🎵 Top 50 Tracks</div>
+                    <div id="chartTracksList" class="chart-list"></div>
+                </div>
             </div>
         </div>
     </div>
-    __TABLE_HTML__
-</div>
-<div class="audio-deck">
-    <div class="deck-container">
-        <iframe id="sc-player" width="100%" height="120" scrolling="no" frameborder="no" allow="autoplay" 
-            src="https://w.soundcloud.com/player/?url=__DEFAULT_URL__&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false">
-        </iframe>
+
+    <!-- 4. Favorites View -->
+    <div id="viewFavorites" class="view-pane">
+        <div id="favoritesList" class="track-list">
+            <!-- Dynamically populated -->
+        </div>
+        <div id="favEmptyState" class="empty-state" style="display: none;">
+            <div class="empty-icon">⭐</div>
+            <h4>No Favorites Saved</h4>
+            <p>Tap the star icon on any track to save it here for instant listening!</p>
+        </div>
     </div>
-    <div class="meta-footer"><span>Status: Operational</span><span>Build: __BUILD_TIME__</span></div>
+
+</main>
+
+<!-- Floating Mini Player Dock -->
+<div id="playerDock" class="player-dock">
+    <div class="mini-player-bar" onclick="togglePlayerExpand()">
+        <div class="mini-pulse-icon">🎶</div>
+        <div class="mini-track-info">
+            <div id="miniTitle" class="mini-title">Select a track to play</div>
+            <div id="miniArtist" class="mini-artist">Ori Uplifting • Uplifting Only</div>
+        </div>
+        <div class="mini-controls" onclick="event.stopPropagation()">
+            <button id="btnMiniPlay" class="btn-mini-ctrl" onclick="togglePlayPause()" title="Play / Pause">▶</button>
+            <button class="btn-mini-ctrl" onclick="playSurpriseTrack()" title="Random Track">🎲</button>
+            <button id="btnMiniExpand" class="btn-mini-ctrl" onclick="togglePlayerExpand()" title="Toggle Waveform">▲</button>
+        </div>
+    </div>
+    <div class="player-expanded-body">
+        <div class="iframe-container">
+            <iframe id="sc-player" width="100%" height="120" scrolling="no" frameborder="no" allow="autoplay"
+                src="https://w.soundcloud.com/player/?url={default_sc_url}&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false">
+            </iframe>
+        </div>
+    </div>
 </div>
+
+<!-- Bottom Navigation Bar (Mobile) -->
+<nav class="app-navbar">
+    <button class="nav-item active" onclick="switchTab('tracks', this)">
+        <span class="nav-icon">🎵</span>
+        <span class="nav-label">Tracks</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('episodes', this)">
+        <span class="nav-icon">📻</span>
+        <span class="nav-label">Episodes</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('charts', this)">
+        <span class="nav-icon">🏆</span>
+        <span class="nav-label">Charts</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('favorites', this)">
+        <span class="nav-icon">⭐</span>
+        <span class="nav-label">Saved</span>
+    </button>
+</nav>
+
+<!-- Episode Tracklist Sheet / Modal -->
+<div id="episodeSheet" class="sheet-overlay" onclick="closeEpisodeSheet(event)">
+    <div class="bottom-sheet" onclick="event.stopPropagation()">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+            <div>
+                <h3 id="sheetEpTitle">Uplifting Only</h3>
+                <p id="sheetEpMeta">Broadcast date</p>
+            </div>
+            <button class="btn-sheet-close" onclick="closeEpisodeSheetDirect()">✕</button>
+        </div>
+        <div style="padding: 12px 20px 6px; display: flex; gap: 10px;">
+            <button id="btnSheetCopy" class="btn-ep-action btn-ep-copy" style="flex: 1;">📋 Copy Tracklist</button>
+            <button id="btnSheetPlayMix" class="btn-ep-action btn-ep-play" style="flex: 1;">▶ Play Episode</button>
+        </div>
+        <div id="sheetTrackList" class="sheet-body track-list">
+            <!-- Dynamically populated -->
+        </div>
+    </div>
+</div>
+
+<!-- Application Engine -->
 <script>
-    // Register Service Worker for PWA Installation
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('SW registered!'))
-                .catch(err => console.log('SW failed:', err));
-        });
-    }
+    // 1. DATASETS
+    const RAW_TRACKS = {tracks_json};
+    const RAW_EPISODES = {episodes_json};
+    const TOP_ARTISTS = {top_artists_json};
+    const TOP_TRACKS = {top_tracks_json};
 
-    var iframe = document.getElementById('sc-player'), widget = SC.Widget(iframe);
-    document.addEventListener("DOMContentLoaded", function() {
-        let table = document.querySelector("table"); if (!table) return;
-        let colgroup = document.createElement('colgroup');
-        colgroup.innerHTML = '<col class="col-ep"><col class="col-date"><col class="col-num"><col class="col-time"><col class="col-artist"><col class="col-title"><col class="col-label"><col class="col-listen">';
-        table.insertBefore(colgroup, table.firstChild);
-        table.querySelectorAll("thead th").forEach((th, i) => th.className = ["col-ep", "col-date", "col-num", "col-time", "col-artist", "col-title", "col-label", "col-listen"][i]);
-        table.querySelectorAll("tbody tr").forEach(row => {
-            ["col-ep", "col-date cell-truncated", "col-num cell-truncated", "col-time cell-truncated", "col-artist cell-truncated", "col-title cell-truncated", "col-label cell-truncated", "col-listen"].forEach((c, idx) => row.cells[idx].className = c);
-        });
-    });
-    function loadTrack(url, secs) {
-        widget.load(url, { color: "#ff5500", auto_play: true, callback: function() { setTimeout(function() { widget.seekTo(secs * 1000); widget.play(); }, 1200); } });
-    }
-    function filterRows(val) {
-        let q = val.toLowerCase().trim(), rows = document.querySelectorAll('table tbody tr');
-        rows.forEach(r => {
-            if (!q) { r.style.display = ''; return; }
-            if (q.includes(' - ')) {
-                let parts = q.split(' - '), aQ = parts[0].trim(), tQ = parts[1].trim();
-                let rA = r.cells[4] ? r.cells[4].textContent.toLowerCase().trim() : '';
-                let rT = r.cells[5] ? r.cells[5].textContent.toLowerCase().trim() : '';
-                r.style.display = (rA.includes(aQ) && rT.includes(tQ)) ? '' : 'none';
-            } else {
-                let keywords = q.split(/\s+/);
-                let rowText = Array.from(r.cells).map(c => c.textContent.toLowerCase()).join(' ');
-                let matchAll = keywords.every(kw => rowText.includes(kw));
-                r.style.display = matchAll ? '' : 'none';
-            }
-        });
-    }
-    function filterBySearch(s) { document.getElementById('searchBox').value = s; filterRows(s); }
-    
-    function copyTracklist(btn, epName) {
-        let rows = Array.from(document.querySelectorAll('table tbody tr'));
-        let textLines = [epName, "-------------------------"];
-        rows.forEach(r => {
-            let cells = r.cells;
-            if (cells[0].textContent.trim() === epName) {
-                let trackNum = cells[2].textContent.trim();
-                let artist = cells[4].textContent.trim();
-                let title = cells[5].textContent.trim();
-                let label = cells[6].textContent.trim();
-                textLines.push(trackNum + ". " + artist + " - " + title + " [" + label + "]");
-            }
-        });
-        let fullText = textLines.join('\\n');
-        navigator.clipboard.writeText(fullText).then(() => {
-            let orig = btn.textContent;
-            btn.textContent = "✅";
-            setTimeout(() => { btn.textContent = orig; }, 1500);
-        });
-    }
+    // Episode Map Lookup
+    const EP_MAP = {{}};
+    RAW_EPISODES.forEach(ep => {{ EP_MAP[ep.id] = ep; }});
 
-    function playRandomTrack() {
-        let r = Array.from(document.querySelectorAll('table tbody tr')).filter(row => row.style.display !== 'none');
-        if (r.length) r[Math.floor(Math.random() * r.length)].cells[7].querySelector('a, button').click();
-    }
-    document.getElementById('searchBox').addEventListener('input', function() { filterRows(this.value); });
+    // 2. STATE MANAGEMENT
+    let activeTab = 'tracks';
+    let filteredTracks = [...RAW_TRACKS];
+    let currentRenderIndex = 0;
+    const CHUNK_SIZE = 40;
+    let currentlyPlayingTrackId = null;
+    let isPlayerPlaying = false;
+    let favoritesSet = new Set(JSON.parse(localStorage.getItem('uponly_favs') || '[]'));
+    let activeChartMode = 'artists';
+    let currentSheetEpId = null;
+
+    // SoundCloud Widget Reference
+    const iframe = document.getElementById('sc-player');
+    const widget = SC.Widget(iframe);
+
+    // 3. INITIALIZATION
+    document.addEventListener('DOMContentLoaded', () => {{
+        renderTracksChunk();
+        setupInfiniteScroll();
+        setupSearchInput();
+        renderEpisodesList();
+        renderCharts();
+        renderFavorites();
+        
+        // PWA Service Worker
+        if ('serviceWorker' in navigator) {{
+            navigator.serviceWorker.register('./sw.js').catch(e => console.log('SW Registration:', e));
+        }}
+    }});
+
+    // 4. TAB NAVIGATION
+    function switchTab(tabId, btn) {{
+        activeTab = tabId;
+        
+        // Synchronize mobile and desktop navigation buttons
+        document.querySelectorAll('.nav-item, .desktop-nav-btn').forEach(el => {{
+            el.classList.remove('active');
+            if (el.getAttribute('onclick') && el.getAttribute('onclick').includes(tabId)) {{
+                el.classList.add('active');
+            }}
+        }});
+
+        document.querySelectorAll('.view-pane').forEach(p => p.classList.remove('active'));
+        if (tabId === 'tracks') {{
+            document.getElementById('viewTracks').classList.add('active');
+        }} else if (tabId === 'episodes') {{
+            document.getElementById('viewEpisodes').classList.add('active');
+        }} else if (tabId === 'charts') {{
+            document.getElementById('viewCharts').classList.add('active');
+        }} else if (tabId === 'favorites') {{
+            renderFavorites();
+            document.getElementById('viewFavorites').classList.add('active');
+        }}
+        window.scrollTo({{ top: 0, behavior: 'smooth' }});
+    }}
+
+    // 5. TRACK LIST VIRTUAL / INFINITE RENDERING
+    function renderTracksChunk() {{
+        const container = document.getElementById('tracksList');
+        const nextIndex = Math.min(currentRenderIndex + CHUNK_SIZE, filteredTracks.length);
+        const fragment = document.createDocumentFragment();
+
+        for (let i = currentRenderIndex; i < nextIndex; i++) {{
+            const t = filteredTracks[i];
+            const card = createTrackCardElement(t);
+            fragment.appendChild(card);
+        }}
+
+        container.appendChild(fragment);
+        currentRenderIndex = nextIndex;
+
+        const sentinel = document.getElementById('tracksSentinel');
+        if (currentRenderIndex >= filteredTracks.length) {{
+            sentinel.style.display = 'none';
+        }} else {{
+            sentinel.style.display = 'flex';
+        }}
+    }}
+
+    function createTrackCardElement(t) {{
+        // t structure: [t_id, ep_id, num, dur, artist, title, label, secs, sc_url]
+        const [tId, epId, num, dur, artist, title, label, secs, scUrl] = t;
+        const ep = EP_MAP[epId] || {{ name: `Ep ${{epId}}`, date: '' }};
+        const epShortName = ep.name.replace(/Uplifting Only\\s*/i, 'UpOnly ');
+        const isFav = favoritesSet.has(tId);
+        const isPlaying = (currentlyPlayingTrackId === tId);
+
+        const card = document.createElement('div');
+        card.className = `track-card ${{isPlaying ? 'is-playing' : ''}}`;
+        card.id = `trk-card-${{tId}}`;
+
+        const timeStr = secs > 0 ? formatSecs(secs) : dur;
+
+        card.innerHTML = `
+            <div class="track-num-badge">${{isPlaying ? '▶' : '#' + num}}</div>
+            <div class="track-details">
+                <div class="track-title">${{escapeHtml(title)}}</div>
+                <div class="track-artist">${{escapeHtml(artist)}}</div>
+                <div class="track-meta-row">
+                    <span class="badge-pill badge-ep">${{escapeHtml(epShortName)}}</span>
+                    ${{secs > 0 ? `<span class="badge-pill badge-time">⏱ ${{timeStr}}</span>` : ''}}
+                    <span class="badge-pill badge-label">${{escapeHtml(label)}}</span>
+                </div>
+            </div>
+            <div class="track-actions" onclick="event.stopPropagation()">
+                <button class="btn-action-icon ${{isFav ? 'is-favorite' : ''}}" onclick="toggleFavorite(${{tId}}, this)" title="Save to Favorites">⭐</button>
+                <a href="${{scUrl || 'https://soundcloud.com/oriuplift'}}" target="_blank" class="btn-action-icon" title="Open in SoundCloud">☁️</a>
+            </div>
+        `;
+
+        card.addEventListener('click', () => {{
+            playTrack(t);
+        }});
+
+        return card;
+    }}
+
+    function setupInfiniteScroll() {{
+        const sentinel = document.getElementById('tracksSentinel');
+        const observer = new IntersectionObserver((entries) => {{
+            if (entries[0].isIntersecting && activeTab === 'tracks') {{
+                if (currentRenderIndex < filteredTracks.length) {{
+                    renderTracksChunk();
+                }}
+            }}
+        }}, {{ rootMargin: '400px' }});
+        observer.observe(sentinel);
+    }}
+
+    // 6. INSTANT SEARCH & FILTERING (<5ms in memory)
+    let searchDebounceTimer = null;
+    function setupSearchInput() {{
+        const input = document.getElementById('globalSearch');
+        const clearBtn = document.getElementById('btnClearSearch');
+
+        input.addEventListener('input', (e) => {{
+            const val = e.target.value;
+            clearBtn.style.display = val.length > 0 ? 'block' : 'none';
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {{
+                executeSearch(val);
+            }}, 80);
+        }});
+    }}
+
+    function executeSearch(query) {{
+        const q = query.toLowerCase().trim();
+        if (!q) {{
+            filteredTracks = [...RAW_TRACKS];
+        }} else {{
+            const keywords = q.split(/\\s+/).filter(Boolean);
+            filteredTracks = RAW_TRACKS.filter(t => {{
+                // t: [t_id, ep_id, num, dur, artist, title, label, secs, sc_url]
+                const ep = EP_MAP[t[1]];
+                const epName = ep ? ep.name.toLowerCase() : '';
+                const epNum = String(t[1]);
+                const trackNum = '#' + t[2];
+                const fullText = (t[4] + ' ' + t[5] + ' ' + t[6] + ' ' + epName + ' ' + epNum + ' ' + trackNum).toLowerCase();
+                return keywords.every(kw => fullText.includes(kw));
+            }});
+        }}
+
+        // Reset scroll & re-render
+        currentRenderIndex = 0;
+        const listEl = document.getElementById('tracksList');
+        listEl.innerHTML = '';
+
+        if (filteredTracks.length === 0) {{
+            listEl.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">🔍</div>
+                    <h4>No tracks found</h4>
+                    <p>No results matching "${{escapeHtml(q)}}". Try searching by artist, title, label, or episode #.</p>
+                </div>
+            `;
+            document.getElementById('tracksSentinel').style.display = 'none';
+        }} else {{
+            renderTracksChunk();
+        }}
+
+        if (activeTab !== 'tracks') {{
+            switchTab('tracks', document.querySelector('.desktop-nav-btn'));
+        }}
+    }}
+
+    function clearSearch() {{
+        const input = document.getElementById('globalSearch');
+        input.value = '';
+        document.getElementById('btnClearSearch').style.display = 'none';
+        executeSearch('');
+    }}
+
+    function applyFilter(filterType, btn) {{
+        document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+
+        if (filterType === 'all') {{
+            clearSearch();
+        }} else if (filterType === 'latest') {{
+            filteredTracks = RAW_TRACKS.filter(t => t[1] >= 650);
+            currentRenderIndex = 0;
+            document.getElementById('tracksList').innerHTML = '';
+            renderTracksChunk();
+            switchTab('tracks', document.querySelector('.desktop-nav-btn'));
+        }} else if (filterType === 'soundlift') {{
+            document.getElementById('globalSearch').value = 'SoundLift';
+            executeSearch('SoundLift');
+        }} else if (filterType === 'abora') {{
+            document.getElementById('globalSearch').value = 'Abora';
+            executeSearch('Abora');
+        }} else if (filterType === 'favorites') {{
+            switchTab('favorites', document.querySelectorAll('.desktop-nav-btn')[3]);
+        }}
+    }}
+
+    // 7. AUDIO PLAYBACK & MINI PLAYER
+    function playTrack(t) {{
+        // t: [t_id, ep_id, num, dur, artist, title, label, secs, sc_url]
+        const [tId, epId, num, dur, artist, title, label, secs, scUrl] = t;
+        const ep = EP_MAP[epId] || {{ name: `Episode ${{epId}}` }};
+
+        currentlyPlayingTrackId = tId;
+
+        // Update card active classes
+        document.querySelectorAll('.track-card').forEach(c => c.classList.remove('is-playing'));
+        const activeCard = document.getElementById(`trk-card-${{tId}}`);
+        if (activeCard) activeCard.classList.add('is-playing');
+
+        // Update Mini Player UI
+        document.getElementById('miniTitle').textContent = title;
+        document.getElementById('miniArtist').textContent = `${{artist}} • ${{ep.name}}`;
+        document.getElementById('btnMiniPlay').textContent = '⏸';
+        isPlayerPlaying = true;
+
+        // Load SoundCloud Track & Seek
+        const targetUrl = scUrl || ep.url || 'https://soundcloud.com/oriuplift';
+        widget.load(targetUrl, {{
+            color: "#ff5500",
+            auto_play: true,
+            callback: function() {{
+                setTimeout(() => {{
+                    if (secs > 0) {{
+                        widget.seekTo(secs * 1000);
+                    }}
+                    widget.play();
+                }}, 1000);
+            }}
+        }});
+    }}
+
+    function playEpisodeMix(epId) {{
+        const ep = EP_MAP[epId];
+        if (!ep || !ep.url) return;
+
+        document.getElementById('miniTitle').textContent = ep.name;
+        document.getElementById('miniArtist').textContent = `Full Mix (${{ep.date}})`;
+        document.getElementById('btnMiniPlay').textContent = '⏸';
+        isPlayerPlaying = true;
+
+        widget.load(ep.url, {{
+            color: "#ff5500",
+            auto_play: true,
+            callback: function() {{
+                widget.play();
+            }}
+        }});
+    }}
+
+    function togglePlayPause() {{
+        if (!isPlayerPlaying) {{
+            widget.play();
+            document.getElementById('btnMiniPlay').textContent = '⏸';
+            isPlayerPlaying = true;
+        }} else {{
+            widget.pause();
+            document.getElementById('btnMiniPlay').textContent = '▶';
+            isPlayerPlaying = false;
+        }}
+    }}
+
+    function togglePlayerExpand() {{
+        const dock = document.getElementById('playerDock');
+        dock.classList.toggle('expanded');
+        document.getElementById('btnMiniExpand').textContent = dock.classList.contains('expanded') ? '▼' : '▲';
+    }}
+
+    function playSurpriseTrack() {{
+        const pool = filteredTracks.length ? filteredTracks : RAW_TRACKS;
+        const randomTrack = pool[Math.floor(Math.random() * pool.length)];
+        playTrack(randomTrack);
+        showToast(`🎲 Playing: ${{randomTrack[5]}}`);
+    }}
+
+    // 8. FAVORITES SYSTEM (localStorage)
+    function toggleFavorite(trackId, btn) {{
+        if (favoritesSet.has(trackId)) {{
+            favoritesSet.delete(trackId);
+            if (btn) btn.classList.remove('is-favorite');
+            showToast('Removed from favorites');
+        }} else {{
+            favoritesSet.add(trackId);
+            if (btn) btn.classList.add('is-favorite');
+            showToast('⭐ Saved to favorites!');
+        }}
+        localStorage.setItem('uponly_favs', JSON.stringify(Array.from(favoritesSet)));
+        if (activeTab === 'favorites') renderFavorites();
+    }}
+
+    function renderFavorites() {{
+        const container = document.getElementById('favoritesList');
+        const emptyState = document.getElementById('favEmptyState');
+        container.innerHTML = '';
+
+        const favTracks = RAW_TRACKS.filter(t => favoritesSet.has(t[0]));
+        if (favTracks.length === 0) {{
+            emptyState.style.display = 'block';
+            return;
+        }}
+        emptyState.style.display = 'none';
+
+        const fragment = document.createDocumentFragment();
+        favTracks.forEach(t => {{
+            fragment.appendChild(createTrackCardElement(t));
+        }});
+        container.appendChild(fragment);
+    }}
+
+    // 9. EPISODES VIEW & TRACKLIST SHEET
+    function renderEpisodesList() {{
+        const container = document.getElementById('episodesList');
+        const fragment = document.createDocumentFragment();
+
+        RAW_EPISODES.forEach(ep => {{
+            const card = document.createElement('div');
+            card.className = 'episode-card';
+            card.innerHTML = `
+                <div class="ep-card-header">
+                    <div class="ep-card-title">${{escapeHtml(ep.name)}}</div>
+                    <div class="badge-pill badge-ep">${{ep.count}} tracks</div>
+                </div>
+                <div class="ep-card-meta">
+                    <span>📅 ${{escapeHtml(ep.date)}}</span>
+                </div>
+                <div class="ep-card-actions">
+                    <button class="btn-ep-action btn-ep-play" onclick="playEpisodeMix(${{ep.id}})">▶ Play Mix</button>
+                    <button class="btn-ep-action btn-ep-view" onclick="openEpisodeSheet(${{ep.id}})">📋 Tracklist</button>
+                    <button class="btn-ep-action btn-ep-copy" onclick="copyEpisodeTracklist(${{ep.id}}, this)">📋 Copy</button>
+                </div>
+            `;
+            fragment.appendChild(card);
+        }});
+
+        container.appendChild(fragment);
+    }}
+
+    function openEpisodeSheet(epId) {{
+        currentSheetEpId = epId;
+        const ep = EP_MAP[epId];
+        if (!ep) return;
+
+        document.getElementById('sheetEpTitle').textContent = ep.name;
+        document.getElementById('sheetEpMeta').textContent = `Air Date: ${{ep.date}} • ${{ep.count}} Tracks`;
+
+        const epTracks = RAW_TRACKS.filter(t => t[1] === epId);
+        const container = document.getElementById('sheetTrackList');
+        container.innerHTML = '';
+
+        const fragment = document.createDocumentFragment();
+        epTracks.forEach(t => {{
+            fragment.appendChild(createTrackCardElement(t));
+        }});
+        container.appendChild(fragment);
+
+        document.getElementById('btnSheetCopy').onclick = () => copyEpisodeTracklist(epId, document.getElementById('btnSheetCopy'));
+        document.getElementById('btnSheetPlayMix').onclick = () => playEpisodeMix(epId);
+
+        document.getElementById('episodeSheet').classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }}
+
+    function closeEpisodeSheet(e) {{
+        document.getElementById('episodeSheet').classList.remove('active');
+        document.body.style.overflow = '';
+    }}
+
+    function closeEpisodeSheetDirect() {{
+        document.getElementById('episodeSheet').classList.remove('active');
+        document.body.style.overflow = '';
+    }}
+
+    function copyEpisodeTracklist(epId, btn) {{
+        const ep = EP_MAP[epId];
+        const epTracks = RAW_TRACKS.filter(t => t[1] === epId);
+        const lines = [ep.name + " (" + ep.date + ")", "---------------------------------"];
+        epTracks.forEach(t => {{
+            lines.push(`${{t[2]}}. ${{t[4]}} - ${{t[5]}} [${{t[6]}}]`);
+        }});
+        const fullText = lines.join('\\n');
+
+        navigator.clipboard.writeText(fullText).then(() => {{
+            showToast(`📋 Copied ${{ep.name}} tracklist!`);
+            if (btn) {{
+                const orig = btn.innerHTML;
+                btn.innerHTML = '✅ Copied!';
+                setTimeout(() => {{ btn.innerHTML = orig; }}, 1500);
+            }}
+        }}).catch(() => {{
+            showToast('Unable to copy tracklist');
+        }});
+    }}
+
+    // 10. CHARTS VIEW
+    function switchChartMode(mode) {{
+        activeChartMode = mode;
+        document.getElementById('btnChartArtists').classList.toggle('active', mode === 'artists');
+        document.getElementById('btnChartTracks').classList.toggle('active', mode === 'tracks');
+        
+        // On mobile, show only selected chart
+        if (window.innerWidth < 768) {{
+            document.getElementById('chartArtistsList').parentElement.style.display = (mode === 'artists') ? 'block' : 'none';
+            document.getElementById('chartTracksList').parentElement.style.display = (mode === 'tracks') ? 'block' : 'none';
+        }} else {{
+            document.getElementById('chartArtistsList').parentElement.style.display = 'block';
+            document.getElementById('chartTracksList').parentElement.style.display = 'block';
+        }}
+    }}
+
+    function renderCharts() {{
+        const artistsContainer = document.getElementById('chartArtistsList');
+        const tracksContainer = document.getElementById('chartTracksList');
+        artistsContainer.innerHTML = '';
+        tracksContainer.innerHTML = '';
+
+        // Render Top Artists
+        const fragArtists = document.createDocumentFragment();
+        TOP_ARTISTS.forEach(([artist, count], idx) => {{
+            const row = document.createElement('div');
+            row.className = 'chart-row';
+            row.innerHTML = `
+                <div class="chart-rank">#${{idx + 1}}</div>
+                <div class="chart-info">
+                    <div class="chart-title">${{escapeHtml(artist)}}</div>
+                    <div class="chart-subtitle">Producer / Artist</div>
+                </div>
+                <div class="chart-count">${{count}} plays</div>
+            `;
+            row.addEventListener('click', () => {{
+                document.getElementById('globalSearch').value = artist;
+                executeSearch(artist);
+            }});
+            fragArtists.appendChild(row);
+        }});
+        artistsContainer.appendChild(fragArtists);
+
+        // Render Top Tracks
+        const fragTracks = document.createDocumentFragment();
+        TOP_TRACKS.forEach(([artist, title, count], idx) => {{
+            const row = document.createElement('div');
+            row.className = 'chart-row';
+            row.innerHTML = `
+                <div class="chart-rank">#${{idx + 1}}</div>
+                <div class="chart-info">
+                    <div class="chart-title">${{escapeHtml(title)}}</div>
+                    <div class="chart-subtitle">${{escapeHtml(artist)}}</div>
+                </div>
+                <div class="chart-count">${{count}} plays</div>
+            `;
+            row.addEventListener('click', () => {{
+                document.getElementById('globalSearch').value = `${{artist}} ${{title}}`;
+                executeSearch(`${{artist}} ${{title}}`);
+            }});
+            fragTracks.appendChild(row);
+        }});
+        tracksContainer.appendChild(fragTracks);
+
+        switchChartMode(activeChartMode);
+    }}
+
+    window.addEventListener('resize', () => {{
+        switchChartMode(activeChartMode);
+    }});
+
+    // 11. UTILITIES
+    function formatSecs(secs) {{
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        if (h > 0) return `${{h}}:${{m.toString().padStart(2, '0')}}:${{s.toString().padStart(2, '0')}}`;
+        return `${{m}}:${{s.toString().padStart(2, '0')}}`;
+    }}
+
+    function escapeHtml(str) {{
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }}
+
+    function showToast(msg) {{
+        const toast = document.getElementById('appToast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => {{ toast.classList.remove('show'); }}, 2000);
+    }}
 </script>
+
 </body>
-</html>"""
+</html>
+"""
 
-    layout = (layout.replace("__VERSION__", SCRIPT_VERSION)
-                    .replace("__MIXES__", str(total_mixes))
-                    .replace("__TRACKS__", str(total_tracks))
-                    .replace("__ARTISTS__", artist_leaderboard_html)
-                    .replace("__TRACKS_LIST__", track_leaderboard_html)
-                    .replace("__TABLE_HTML__", table_html)
-                    .replace("__DEFAULT_URL__", default_url)
-                    .replace("__BUILD_TIME__", BUILD_TIME))
+    for out_path in OUTPUT_FILES:
+        print(f"Writing app bundle to: {out_path}")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(html_template)
+        print(f"SUCCESS: Generated {os.path.basename(out_path)} ({os.path.getsize(out_path) / 1024 / 1024:.2f} MB)")
 
-    with open(HTML_OUTPUT, "w", encoding="utf-8") as f:
-        f.write(layout)
-    
-    webbrowser.open(HTML_OUTPUT)
-    print(f"PWA Dashboard compiled to v{SCRIPT_VERSION} at: {HTML_OUTPUT}")
+    print("=== Universal Web App Generation Complete ===")
 
 if __name__ == "__main__":
-    launch_interface_v2()
+    build_universal_app()
