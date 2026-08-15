@@ -1224,7 +1224,7 @@ def build_mobile_app():
         // t structure: [t_id, ep_id, num, dur, artist, title, label, secs, sc_url]
         const [tId, epId, num, dur, artist, title, label, secs, scUrl] = t;
         const ep = EP_MAP[epId] || {{ name: `Ep ${{epId}}`, date: '' }};
-        const epShortName = ep.name.replace(/Uplifting Only\\\\s*/i, 'UpOnly ');
+        const epShortName = ep.name.replace(/Uplifting Only\s*/i, 'UpOnly ');
         const isFav = favoritesSet.has(tId);
         const isPlaying = (currentlyPlayingTrackId === tId);
 
@@ -1291,20 +1291,35 @@ def build_mobile_app():
         if (!q) {{
             filteredTracks = [...RAW_TRACKS];
         }} else {{
-            const keywords = q.split(/\\\\s+/);
+            const keywords = q.split(/\\s+/).filter(Boolean);
             filteredTracks = RAW_TRACKS.filter(t => {{
                 // t: [t_id, ep_id, num, dur, artist, title, label, secs, sc_url]
                 const ep = EP_MAP[t[1]];
                 const epName = ep ? ep.name.toLowerCase() : '';
-                const fullText = (t[4] + ' ' + t[5] + ' ' + t[6] + ' ' + epName).toLowerCase();
+                const epNum = String(t[1]);
+                const trackNum = '#' + t[2];
+                const fullText = (t[4] + ' ' + t[5] + ' ' + t[6] + ' ' + epName + ' ' + epNum + ' ' + trackNum).toLowerCase();
                 return keywords.every(kw => fullText.includes(kw));
             }});
         }}
 
         // Reset scroll & re-render
         currentRenderIndex = 0;
-        document.getElementById('tracksList').innerHTML = '';
-        renderTracksChunk();
+        const listEl = document.getElementById('tracksList');
+        listEl.innerHTML = '';
+
+        if (filteredTracks.length === 0) {{
+            listEl.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">🔍</div>
+                    <h4>No tracks found</h4>
+                    <p>No results matching "${{escapeHtml(q)}}". Try searching by artist, title, label, or episode #.</p>
+                </div>
+            `;
+            document.getElementById('tracksSentinel').style.display = 'none';
+        }} else {{
+            renderTracksChunk();
+        }}
 
         if (activeTab !== 'tracks') {{
             switchTab('tracks', document.querySelector('.nav-item'));
