@@ -9,6 +9,15 @@ python build_mobile_app.py; git add mobile.html manifest_mobile.json sw.js build
 # Full Update (Spreadsheet Data + Desktop + Mobile App):
 python import_spreadsheet.py; python dashboard_v2.py; python build_mobile_app.py; git add music_dashboard.html mobile.html manifest_mobile.json sw.js dashboard_v2.py build_mobile_app.py import_spreadsheet.py; git commit -m "Update tracklists, desktop dashboard, and mobile app"; git push origin main:master
 # Note: uplifting_vault_v2.db is a local build artifact (.gitignore'd) — it no longer needs to be added/committed.
+# WARNING: as of 2026-08-29, "Ori Uplift - Tracklists - excerpt.xlsx" only covers episodes up to 701. Episodes 702-707 were
+# added by inserting directly into uplifting_vault_v2.db (scraped from abora-recordings.com's tracklist page), NOT into the
+# spreadsheet. Running "python import_spreadsheet.py" wipes the DB and rebuilds it from the spreadsheet alone, which will
+# DROP episodes 702-707 again until the spreadsheet itself is updated with them. If you run the Full Update above and the
+# episode count drops back to 701, that's why — re-insert the missing episodes (or update the spreadsheet) afterward.
+# DO NOT try to append new rows to this xlsx with openpyxl/pandas: many historical cells are Excel formulas with cached
+# values, and any library that re-saves the file drops those caches, silently corrupting most of the historical tracklist
+# data (confirmed: openpyxl re-save took the DB from 17,550 tracks down to 8,621). Only edit this file in real Excel/Sheets,
+# or add new episodes directly to the SQLite DB as done here.
 
 # Fallback: rescraping from the web (if "Ori Uplift - Tracklists - excerpt.xlsx" is unavailable):
 # The whole scrape/enrich/legacy-dashboard chain lives in scrape_pipeline/ and rebuilds scrape_pipeline/uplifting_only.db from live sources instead of the spreadsheet.
