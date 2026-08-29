@@ -7,4 +7,17 @@ python dashboard_v2.py; git add music_dashboard.html dashboard_v2.py; git commit
 python build_mobile_app.py; git add mobile.html manifest_mobile.json sw.js build_mobile_app.py; git commit -m "Update mobile app"; git push origin main:master
 
 # Full Update (Spreadsheet Data + Desktop + Mobile App):
-python import_spreadsheet.py; python dashboard_v2.py; python build_mobile_app.py; git add music_dashboard.html mobile.html uplifting_vault_v2.db manifest_mobile.json sw.js dashboard_v2.py build_mobile_app.py import_spreadsheet.py; git commit -m "Update tracklists, desktop dashboard, and mobile app"; git push origin main:master
+python import_spreadsheet.py; python dashboard_v2.py; python build_mobile_app.py; git add music_dashboard.html mobile.html manifest_mobile.json sw.js dashboard_v2.py build_mobile_app.py import_spreadsheet.py; git commit -m "Update tracklists, desktop dashboard, and mobile app"; git push origin main:master
+# Note: uplifting_vault_v2.db is a local build artifact (.gitignore'd) — it no longer needs to be added/committed.
+
+# Fallback: rescraping from the web (if "Ori Uplift - Tracklists - excerpt.xlsx" is unavailable):
+# The whole scrape/enrich/legacy-dashboard chain lives in scrape_pipeline/ and rebuilds scrape_pipeline/uplifting_only.db from live sources instead of the spreadsheet.
+# Run these FROM INSIDE scrape_pipeline/ (relative DB paths depend on it):
+#   cd scrape_pipeline
+#   python scraper.py                 # live scrape of the Abora iframe endpoint -> episodes/tracks, but NO timestamps or per-track links
+#   python repair_via_soundcloud.py   # best-effort per-track SoundCloud link enrichment via oEmbed search
+#   python fetch_exact_links.py       # alternate enrichment: scrapes each episode's Abora page directly for its SoundCloud link
+#   python check_archive_health.py    # diagnostic: flags missing/dead links in the db
+# Note: scraper_v2.py is an unfinished rewrite (no working scrape loop) — do not rely on it.
+# Note: build_vault.py / parse_times.py rebuild from a local "Tracklists with Times.md" export (not live scraping) if you have one with timestamps.
+# Getting this data into the live site still requires wiring it into import_spreadsheet.py's schema (uplifting_vault_v2.db), or adapting dashboard_v2.py/build_mobile_app.py to read scrape_pipeline/uplifting_only.db instead.
